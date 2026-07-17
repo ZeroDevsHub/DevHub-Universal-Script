@@ -1,0 +1,1386 @@
+-- =============================================
+-- LOAD COMPKILLER UI
+-- =============================================
+local Compkiller = loadstring(game:HttpGet("https://raw.githubusercontent.com/4lpaca-pin/CompKiller/refs/heads/main/src/source.luau"))();
+
+-- Create Notification
+local Notifier = Compkiller.newNotify();
+
+-- Create Config Manager
+local ConfigManager = Compkiller:ConfigManager({
+	Directory = "DevHub",
+	Config = "DevHub-Config"
+});
+
+-- Loading UI
+Compkiller:Loader("rbxassetid://12293377909", 1.5).yield();
+
+-- Creating Window
+local MenuKey = "LeftAlt";
+
+local Window = Compkiller.new({
+	Name = "DevHub",
+	Keybind = MenuKey,
+	Logo = "rbxassetid://12293377909",
+	Scale = Compkiller.Scale.Window,
+	TextSize = 15,
+});
+
+-- =============================================
+-- NOTIFICATION ON LOAD
+-- =============================================
+Notifier.new({
+	Title = "DevHub",
+	Content = "All components loaded successfully! Credit Leak @ZeroDev",
+	Duration = 10,
+	Icon = "rbxassetid://12293377909"
+});
+
+-- =============================================
+-- WATERMARK
+-- =============================================
+local Watermark = Window:Watermark();
+
+Watermark:AddText({
+	Icon = "user",
+	Text = "ZeroDev",
+});
+
+Watermark:AddText({
+	Icon = "clock",
+	Text = Compkiller:GetDate(),
+});
+
+local Time = Watermark:AddText({
+	Icon = "timer",
+	Text = "TIME",
+});
+
+task.spawn(function()
+	while true do task.wait()
+		Time:SetText(Compkiller:GetTimeNow());
+	end
+end)
+
+Watermark:AddText({
+	Icon = "server",
+	Text = Compkiller.Version,
+});
+
+-- =============================================
+-- UI STATE VARIABLES
+-- =============================================
+local autoHarvest = false
+local autoSell = false
+local sellCooldown = 5
+local autoBuyEnabled = false
+local autoStealEnabled = false
+local excludedItems = {}
+local selectedSeeds = {}
+local selectedGears = {}
+local selectedCrates = {}
+
+-- =============================================
+-- NORMAL SEED LIST (37 Seeds)
+-- =============================================
+local normalSeeds = {
+	"Carrot", "Strawberry", "Blueberry", "Tulip", "Tomato", "Apple",
+	"Bamboo", "Corn", "Cactus", "Pineapple", "Mushroom", "Green Bean",
+	"Banana", "Grape", "Coconut", "Dragon Fruit", "Mango", "Acorn",
+	"Cherry", "Sunflower", "Venus Fly Trap", "Pomegranate", "Venom Spitter",
+	"Moon Bloom", "Dragon's Breath", "Watermelon", "Wheat", "Potato",
+	"Pumpkin", "Radish", "Lettuce", "Onion", "Garlic", "Eggplant",
+	"Pepper", "Lemon", "Lime"
+}
+
+-- =============================================
+-- ESP STATE VARIABLES (ENEMY HIGHLIGHT)
+-- =============================================
+local espEnabled = false
+local fillTransparency = 0.5
+local outlineTransparency = 0.3
+local useLocalPlayer = false
+local espHolder = nil
+local espConnection = nil
+
+-- =============================================
+-- PLAYER & GAME REFERENCES
+-- =============================================
+local LocalPlayer = game.Players.LocalPlayer
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+
+-- =============================================
+-- USER SETTINGS
+-- =============================================
+local UserSettings = Window.UserSettings:Create();
+
+UserSettings:AddColorPicker({
+	Name = "Menu Color",
+	Default = Compkiller.Colors.Highlight,
+	Callback = function(f)
+		Compkiller.Colors.Highlight = f;
+		Compkiller:RefreshCurrentColor();
+	end,
+});
+
+UserSettings:AddKeybind({
+	Name = "Menu Key",
+	Default = MenuKey,
+	Callback = function(f)
+		MenuKey = f;
+		Window:SetMenuKey(MenuKey)
+	end,
+});
+
+UserSettings:AddDropdown({
+	Name = "Menu Language",
+	Values = {"English"},
+	Default = "English",
+	Callback = print
+});
+
+UserSettings:AddDropdown({
+	Name = "Menu Theme",
+	Values = {
+		"Default",
+		"Dark Green",
+		"Dark Blue",
+		"Purple Rose",
+		"Skeet"
+	},
+	Default = "Default",
+	Callback = function(f)
+		Compkiller:SetTheme(f)
+	end,
+});
+
+UserSettings:AddDropdown({
+	Name = "Visible Widgets",
+	Values = {"Watermark", "Keybinds", "Double Tab"},
+	Multi = true,
+	Default = {"Watermark"},
+	Callback = function(f)
+		print(f)
+	end,
+});
+
+-- =============================================
+-- CREATE TABS
+-- =============================================
+
+-- Main Category
+Window:DrawCategory({
+	Name = "DevHub"
+});
+
+-- MAIN TAB
+local MainTab = Window:DrawTab({
+	Name = "Main",
+	Icon = "home",
+	EnableScrolling = true
+});
+
+-- SHOP TAB
+local ShopTab = Window:DrawTab({
+	Name = "Shop",
+	Icon = "shopping-cart",
+	EnableScrolling = true
+});
+
+-- STEAL TAB
+local StealTab = Window:DrawTab({
+	Name = "Steal",
+	Icon = "eye",
+	EnableScrolling = true
+});
+
+-- PET TAB
+local PetTab = Window:DrawTab({
+	Name = "Pets",
+	Icon = "paw-print",
+	EnableScrolling = true
+});
+
+-- ESP TAB
+local ESPTab = Window:DrawTab({
+	Name = "ESP",
+	Icon = "eye",
+	EnableScrolling = true
+});
+
+-- INFO TAB
+local InfoTab = Window:DrawTab({
+	Name = "Info",
+	Icon = "info",
+	Type = "Single",
+	EnableScrolling = true
+});
+
+-- =============================================
+-- MISC CATEGORY (Settings & Config)
+-- =============================================
+Window:DrawCategory({
+	Name = "Misc"
+});
+
+local SettingTab = Window:DrawTab({
+	Icon = "settings-3",
+	Name = "Settings",
+	Type = "Single",
+	EnableScrolling = true
+});
+
+-- =============================================
+-- MAIN TAB UI
+-- =============================================
+
+local MainSection = MainTab:DrawSection({
+	Name = "🌱 Farming",
+	Position = 'left'
+});
+
+MainSection:AddToggle({
+	Name = "Auto Harvest",
+	Flag = "AutoHarvest",
+	Default = false,
+	Callback = function(v)
+		autoHarvest = v
+	end,
+});
+
+MainSection:AddToggle({
+	Name = "Auto Sell",
+	Flag = "AutoSell",
+	Default = false,
+	Callback = function(v)
+		autoSell = v
+	end,
+});
+
+MainSection:AddSlider({
+	Name = "Sell Cooldown",
+	Min = 1,
+	Max = 60,
+	Default = 5,
+	Round = 1,
+	Flag = "SellCooldown",
+	Callback = function(v)
+		sellCooldown = v
+	end
+});
+
+-- SELL ALL INVENTORY BUTTON (NEW)
+MainSection:AddParagraph({
+	Title = "━━━ Quick Actions ━━━",
+	Content = "Sell everything in your inventory instantly"
+});
+
+MainSection:AddButton({
+	Name = "💰 Sell All Inventory",
+	Callback = function()
+		pcall(function()
+			local ok, Net = pcall(function()
+				return require(ReplicatedStorage.SharedModules.Networking)
+			end)
+			if ok and Net and Net.NPCS and Net.NPCS.SellAll then
+				Net.NPCS.SellAll:Fire()
+				Notifier.new({
+					Title = "Sell All Complete!",
+					Content = "All inventory items have been sold.",
+					Duration = 4,
+					Icon = "rbxassetid://12293377909"
+				});
+			else
+				-- Fallback method
+				local Packet = ReplicatedStorage:FindFirstChild("SharedModules")
+				if Packet then Packet = Packet:FindFirstChild("Packet") end
+				if Packet then Packet = Packet:FindFirstChild("RemoteEvent") end
+				if Packet then
+					Packet:FireServer(buffer.fromstring("\157\000\018"))
+					Notifier.new({
+						Title = "Sell All Complete!",
+						Content = "All inventory items have been sold.",
+						Duration = 4,
+						Icon = "rbxassetid://12293377909"
+					});
+				else
+					Notifier.new({
+						Title = "Sell Failed",
+						Content = "Could not find sell remote. Try Auto Sell toggle instead.",
+						Duration = 4,
+						Icon = "rbxassetid://12293377909"
+					});
+				end
+			end
+		end)
+	end,
+});
+
+MainSection:AddParagraph({
+	Title = "━━━ Player Settings ━━━",
+	Content = "Adjust your character stats"
+});
+
+MainSection:AddSlider({
+	Name = "Walk Speed",
+	Min = 16,
+	Max = 33,
+	Default = 16,
+	Round = 1,
+	Flag = "WalkSpeed",
+	Callback = function(v)
+		if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+			LocalPlayer.Character.Humanoid.WalkSpeed = v
+		end
+	end
+});
+
+MainSection:AddSlider({
+	Name = "Jump Power",
+	Min = 50,
+	Max = 300,
+	Default = 50,
+	Round = 5,
+	Flag = "JumpPower",
+	Callback = function(v)
+		if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+			LocalPlayer.Character.Humanoid.JumpPower = v
+		end
+	end
+});
+
+MainSection:AddToggle({
+	Name = "Anti Idle (No AFK)",
+	Flag = "AntiIdle",
+	Default = false,
+	Callback = function(v)
+		if v then
+			local VirtualUser = game:GetService("VirtualUser")
+			LocalPlayer.Idled:Connect(function()
+				VirtualUser:CaptureController()
+				VirtualUser:ClickButton2(Vector2.new())
+			end)
+			Notifier.new({
+				Title = "Anti Idle Enabled",
+				Content = "You won't get kicked for being AFK",
+				Duration = 4,
+				Icon = "rbxassetid://12293377909"
+			});
+		end
+	end,
+});
+
+-- Freeze Position
+local freezeEnabled = false
+local savedPosition = nil
+local freezeConnection = nil
+
+MainSection:AddToggle({
+	Name = "Freeze Position (Anti Steal)",
+	Flag = "FreezePosition",
+	Default = false,
+	Callback = function(v)
+		freezeEnabled = v
+		if v then
+			if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+				savedPosition = LocalPlayer.Character.HumanoidRootPart.CFrame
+				Notifier.new({
+					Title = "Position Saved",
+					Content = "You will be returned here if moved",
+					Duration = 4,
+					Icon = "rbxassetid://12293377909"
+				});
+			end
+			freezeConnection = RunService.Heartbeat:Connect(function()
+				if not freezeEnabled or not savedPosition then return end
+				if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+				local root = LocalPlayer.Character.HumanoidRootPart
+				local distance = (root.Position - savedPosition.Position).Magnitude
+				if distance > 15 then
+					local tweenInfo = TweenInfo.new(0.4, Enum.EasingStyle.Linear)
+					local tween = TweenService:Create(root, tweenInfo, {CFrame = savedPosition})
+					tween:Play()
+				end
+			end)
+		else
+			if freezeConnection then
+				freezeConnection:Disconnect()
+				freezeConnection = nil
+			end
+			savedPosition = nil
+		end
+	end,
+});
+
+-- Right Section for Main Tab
+local MainSectionRight = MainTab:DrawSection({
+	Name = "🌱 Quick Stats",
+	Position = 'right'
+});
+
+MainSectionRight:AddParagraph({
+	Title = "Live Status",
+	Content = "Loading information..."
+});
+
+-- =============================================
+-- SHOP TAB UI
+-- =============================================
+
+local ShopSection = ShopTab:DrawSection({
+	Name = "🛒 Auto-Buy Settings",
+	Position = 'left'
+});
+
+ShopSection:AddToggle({
+	Name = "Auto-Buy (Master Switch)",
+	Flag = "AutoBuy",
+	Default = false,
+	Callback = function(v)
+		autoBuyEnabled = v
+	end,
+});
+
+ShopSection:AddTextBox({
+	Name = "Exclude Items",
+	Placeholder = "e.g. Apple, Wheat, Crate_01",
+	Default = "",
+	Callback = function(v)
+		excludedItems = {}
+		if v and v ~= "" then
+			for word in string.gmatch(v, "[^,]+") do
+				local trimmed = word:gsub("^%s+", ""):gsub("%s+$", "")
+				if trimmed ~= "" then
+					table.insert(excludedItems, trimmed)
+				end
+			end
+		end
+		print("Excluded items:", table.concat(excludedItems, ", "))
+	end
+});
+
+local ShopSectionRight = ShopTab:DrawSection({
+	Name = "━━━ Select Items to Buy ━━━",
+	Position = 'right'
+});
+
+-- Seeds Dropdown
+ShopSectionRight:AddParagraph({
+	Title = "🌱 Seeds",
+	Content = "Select seeds to auto-buy (37 normal seeds)"
+});
+
+ShopSectionRight:AddDropdown({
+	Name = "Seeds Selection",
+	Values = normalSeeds,
+	Multi = true,
+	Default = {},
+	Callback = function(selected)
+		for k in pairs(selectedSeeds) do selectedSeeds[k] = nil end
+		if type(selected) == "table" then
+			for name, state in pairs(selected) do
+				if state then table.insert(selectedSeeds, name) end
+			end
+		else
+			table.insert(selectedSeeds, selected)
+		end
+		print("Selected seeds:", table.concat(selectedSeeds, ", "))
+	end
+});
+
+-- Items/Gears Dropdown
+ShopSectionRight:AddParagraph({
+	Title = "🛠️ Items / Gears",
+	Content = "Select items/gears to auto-buy"
+});
+
+local gearNames = {
+	"Basic Shovel", "Advanced Shovel", "Watering Can",
+	"Fertilizer", "Pesticide", "Growth Boost"
+}
+
+ShopSectionRight:AddDropdown({
+	Name = "Gears Selection",
+	Values = gearNames,
+	Multi = true,
+	Default = {},
+	Callback = function(selected)
+		for k in pairs(selectedGears) do selectedGears[k] = nil end
+		if type(selected) == "table" then
+			for name, state in pairs(selected) do
+				if state then table.insert(selectedGears, name) end
+			end
+		else
+			table.insert(selectedGears, selected)
+		end
+		print("Selected gears:", table.concat(selectedGears, ", "))
+	end
+});
+
+-- Fruits/Crates Dropdown
+ShopSectionRight:AddParagraph({
+	Title = "📦 Fruits / Crates",
+	Content = "Select fruits/crates to auto-buy"
+});
+
+local crateNames = {
+	"Basic Crate", "Rare Crate", "Epic Crate",
+	"Legendary Crate", "Mystery Crate"
+}
+
+ShopSectionRight:AddDropdown({
+	Name = "Crates Selection",
+	Values = crateNames,
+	Multi = true,
+	Default = {},
+	Callback = function(selected)
+		for k in pairs(selectedCrates) do selectedCrates[k] = nil end
+		if type(selected) == "table" then
+			for name, state in pairs(selected) do
+				if state then table.insert(selectedCrates, name) end
+			end
+		else
+			table.insert(selectedCrates, selected)
+		end
+		print("Selected crates:", table.concat(selectedCrates, ", "))
+	end
+});
+
+-- =============================================
+-- STEAL TAB UI
+-- =============================================
+
+local StealSection = StealTab:DrawSection({
+	Name = "👁️ Auto-Steal (Everything)",
+	Position = 'left'
+});
+
+StealSection:AddParagraph({
+	Title = "Steals ALL stealable plants from other players' gardens",
+	Content = "Only works at night"
+});
+
+StealSection:AddToggle({
+	Name = "Auto-Steal",
+	Flag = "AutoSteal",
+	Default = false,
+	Callback = function(v)
+		autoStealEnabled = v
+	end,
+});
+
+local StealSectionRight = StealTab:DrawSection({
+	Name = "📡 Live Status",
+	Position = 'right'
+});
+
+StealSectionRight:AddParagraph({
+	Title = "Steal Status",
+	Content = "Loading..."
+});
+
+-- =============================================
+-- PET TAB UI
+-- =============================================
+
+local PetSection = PetTab:DrawSection({
+	Name = "🐾 Pet Spawner",
+	Position = 'left'
+});
+
+PetSection:AddParagraph({
+	Title = "Click a button to spawn the pet",
+	Content = "Pets will appear in your backpack"
+});
+
+-- Pet list
+local pets = {
+	"Raccoon", "Robin", "Deer", "Owl", "Bee", "Bunny", "Frog",
+	"GoldenDragonfly", "Monkey", "Unicorn", "IceSerpent",
+	"Rainbow Raccoon", "Rainbow Bee", "Rainbow Monkey",
+	"Rainbow GoldenDragonfly", "Rainbow Unicorn", "Rainbow Ice Serpent",
+	"Big Raccoon", "Big Bee", "Big Monkey",
+	"Big Rainbow Raccoon", "Big Rainbow Bee", "Big Rainbow Robin",
+	"Big Rainbow Deer", "Big Rainbow Bunny", "Big Rainbow Frog",
+	"Big Rainbow Ice Serpent", "Big Ice Serpent",
+	"Mega Raccoon", "Mega Bee", "Mega Robin", "Mega Deer",
+	"Mega Frog", "Mega Owl", "Mega Ice Serpent",
+	"Mega Rainbow Ice Serpent"
+}
+
+-- Pet spawning function
+local function spawnPet(fullName)
+	if not fullName then return end
+	
+	local size = "Normal"
+	local pType = "Normal"
+	local base = fullName
+	
+	if fullName:find("Mega Rainbow ") then
+		size, base, pType = "Huge", fullName:gsub("Mega Rainbow ", ""), "Rainbow"
+	elseif fullName:find("Big Rainbow ") then
+		size, base, pType = "Big", fullName:gsub("Big Rainbow ", ""), "Rainbow"
+	elseif fullName:find("Rainbow ") then
+		size, base, pType = "Normal", fullName:gsub("Rainbow ", ""), "Rainbow"
+	elseif fullName:find("Mega ") then
+		size, base = "Huge", fullName:gsub("Mega ", "")
+	elseif fullName:find("Big ") then
+		size, base = "Big", fullName:gsub("Big ", "")
+	end
+	
+	if pType == "Normal" and base:find("Rainbow ") then
+		pType = "Rainbow"
+		base = base:gsub("Rainbow ", "")
+	end
+	
+	local modelName = base:gsub(" ", "")
+	local petsFolder = ReplicatedStorage:FindFirstChild("Assets")
+		and ReplicatedStorage.Assets:FindFirstChild("Pets")
+	local model = petsFolder and petsFolder:FindFirstChild(modelName)
+	
+	if not model then
+		Notifier.new({
+			Title = "Spawn Failed",
+			Content = "Model not found: " .. modelName,
+			Duration = 4,
+			Icon = "rbxassetid://12293377909"
+		});
+		return
+	end
+	
+	local tool = Instance.new("Tool")
+	tool.Name = fullName
+	tool.RequiresHandle = true
+	
+	local gear = ReplicatedStorage:FindFirstChild("SharedModules")
+		and ReplicatedStorage.SharedModules:FindFirstChild("GearImages")
+	if gear then
+		local icon = gear:FindFirstChild(modelName)
+		if icon then tool.TextureId = icon.Value end
+	end
+	
+	local clone = model:Clone()
+	tool:SetAttribute("Pet", modelName)
+	tool:SetAttribute("PetSize", size)
+	if pType == "Rainbow" then
+		tool:SetAttribute("PetType", "Rainbow")
+	end
+	
+	if clone.PrimaryPart then
+		clone.PrimaryPart.Name = "Handle"
+		clone.PrimaryPart.Parent = tool
+		clone.Parent = tool
+	else
+		clone.Name = "Handle"
+		clone.Parent = tool
+	end
+	
+	tool.Parent = LocalPlayer.Backpack
+	
+	Notifier.new({
+		Title = "Pet Spawned!",
+		Content = fullName .. " added to backpack.",
+		Duration = 3,
+		Icon = "rbxassetid://12293377909"
+	});
+end
+
+-- Add pet buttons in sections
+local function addPetButtons(sectionName, petList)
+	local section = PetTab:DrawSection({
+		Name = sectionName,
+		Position = 'left'
+	})
+	for _, pet in ipairs(petList) do
+		section:AddButton({
+			Name = pet,
+			Callback = function()
+				spawnPet(pet)
+			end,
+		})
+	end
+end
+
+-- Normal Pets
+addPetButtons("━━━ Normal Pets ━━━", {
+	"Raccoon", "Robin", "Deer", "Owl", "Bee", "Bunny", "Frog",
+	"GoldenDragonfly", "Monkey", "Unicorn", "IceSerpent"
+})
+
+-- Rainbow Pets
+addPetButtons("━━━ Rainbow Pets ━━━", {
+	"Rainbow Raccoon", "Rainbow Bee", "Rainbow Monkey",
+	"Rainbow GoldenDragonfly", "Rainbow Unicorn", "Rainbow Ice Serpent"
+})
+
+-- Big Pets
+addPetButtons("━━━ Big Pets ━━━", {
+	"Big Raccoon", "Big Bee", "Big Monkey", "Big Ice Serpent"
+})
+
+-- Big Rainbow Pets
+addPetButtons("━━━ Big Rainbow Pets ━━━", {
+	"Big Rainbow Raccoon", "Big Rainbow Bee", "Big Rainbow Robin",
+	"Big Rainbow Deer", "Big Rainbow Bunny", "Big Rainbow Frog",
+	"Big Rainbow Ice Serpent"
+})
+
+-- Mega Pets
+addPetButtons("━━━ Mega Pets ━━━", {
+	"Mega Raccoon", "Mega Bee", "Mega Robin", "Mega Deer",
+	"Mega Frog", "Mega Owl", "Mega Ice Serpent"
+})
+
+-- Mega Rainbow Pets
+addPetButtons("━━━ Mega Rainbow Pets ━━━", {
+	"Mega Rainbow Ice Serpent"
+})
+
+-- =============================================
+-- ESP TAB UI (ENEMY HIGHLIGHT - FIXED RED)
+-- =============================================
+
+local ESPSection = ESPTab:DrawSection({
+	Name = "🎯 Enemy ESP (Red Highlight)",
+	Position = 'left'
+});
+
+ESPSection:AddParagraph({
+	Title = "Highlights all players as enemies",
+	Content = "Fixed red color with adjustable transparency"
+});
+
+ESPSection:AddToggle({
+	Name = "Enable ESP",
+	Flag = "ESPEnabled",
+	Default = false,
+	Callback = function(v)
+		espEnabled = v
+		if not espEnabled then
+			if espHolder then
+				espHolder:Destroy()
+				espHolder = nil
+			end
+			if espConnection then
+				espConnection:Disconnect()
+				espConnection = nil
+			end
+		else
+			if not espHolder then
+				espHolder = Instance.new("Folder")
+				espHolder.Name = "ESPHolder"
+				espHolder.Parent = CoreGui
+			end
+			if not espConnection then
+				espConnection = RunService.Heartbeat:Connect(function()
+					if espEnabled then
+						updateESP()
+					end
+				end)
+			end
+		end
+	end,
+});
+
+-- ESP Settings Section
+local ESPSettings = ESPTab:DrawSection({
+	Name = "━━━ Transparency Settings ━━━",
+	Position = 'right'
+});
+
+ESPSettings:AddSlider({
+	Name = "Fill Transparency",
+	Min = 0,
+	Max = 1,
+	Default = 0.5,
+	Round = 2,
+	Flag = "FillTransparency",
+	Callback = function(v)
+		fillTransparency = v
+	end,
+});
+
+ESPSettings:AddSlider({
+	Name = "Outline Transparency",
+	Min = 0,
+	Max = 1,
+	Default = 0.3,
+	Round = 2,
+	Flag = "OutlineTransparency",
+	Callback = function(v)
+		outlineTransparency = v
+	end,
+});
+
+ESPSettings:AddToggle({
+	Name = "Include Local Player",
+	Flag = "IncludeSelf",
+	Default = false,
+	Callback = function(v)
+		useLocalPlayer = v
+	end,
+});
+
+-- =============================================
+-- ESP FUNCTIONS (ENEMY HIGHLIGHT - FIXED RED)
+-- =============================================
+
+local function updateESP()
+	if not espEnabled then
+		if espHolder then
+			espHolder:Destroy()
+			espHolder = nil
+		end
+		return
+	end
+
+	if not espHolder then
+		espHolder = Instance.new("Folder")
+		espHolder.Name = "ESPHolder"
+		espHolder.Parent = CoreGui
+	end
+
+	local enemyFillColor = Color3.fromRGB(180, 0, 0)
+	local enemyOutlineColor = Color3.fromRGB(255, 0, 0)
+
+	for _, player in pairs(Players:GetPlayers()) do
+		local char = player.Character
+		if char then
+			if not useLocalPlayer and player == LocalPlayer then
+				if espHolder:FindFirstChild(player.Name) then
+					espHolder:FindFirstChild(player.Name):Destroy()
+				end
+				continue
+			end
+			
+			local esp = espHolder:FindFirstChild(player.Name)
+			if not esp then
+				esp = Instance.new("Highlight")
+				esp.Name = player.Name
+				esp.Parent = espHolder
+			end
+			
+			esp.FillColor = enemyFillColor
+			esp.OutlineColor = enemyOutlineColor
+			esp.FillTransparency = fillTransparency
+			esp.OutlineTransparency = outlineTransparency
+			esp.Adornee = char
+			esp.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+		end
+	end
+	
+	for _, esp in pairs(espHolder:GetChildren()) do
+		if not Players:FindFirstChild(esp.Name) then
+			esp:Destroy()
+		end
+	end
+end
+
+-- =============================================
+-- INFO TAB UI
+-- =============================================
+
+local InfoSection = InfoTab:DrawSection({
+	Name = "📝 About / Credits",
+	Position = 'left'
+});
+
+InfoSection:AddParagraph({
+	Title = "Thanks for using my script!",
+	Content = "Also, I've been working on an aimbot script.\nI felt bored, so I released GAG2 script – it's easy to know about it.\nEnjoy before disconnect!"
+});
+
+InfoSection:AddParagraph({
+	Title = "DevHub",
+	Content = "All features loaded successfully!"
+});
+
+-- =============================================
+-- SETTINGS TAB
+-- =============================================
+
+local Settings = SettingTab:DrawSection({
+	Name = "UI Settings",
+});
+
+Settings:AddToggle({
+	Name = "Always Show Frame",
+	Default = false,
+	Callback = function(v)
+		Window.AlwayShowTab = v;
+	end,
+});
+
+Settings:AddColorPicker({
+	Name = "Highlight",
+	Default = Compkiller.Colors.Highlight,
+	Callback = function(v)
+		Compkiller.Colors.Highlight = v;
+		Compkiller:RefreshCurrentColor();
+	end,
+});
+
+Settings:AddColorPicker({
+	Name = "Toggle Color",
+	Default = Compkiller.Colors.Toggle,
+	Callback = function(v)
+		Compkiller.Colors.Toggle = v;
+		Compkiller:RefreshCurrentColor(v);
+	end,
+});
+
+Settings:AddColorPicker({
+	Name = "Background Color",
+	Default = Compkiller.Colors.BGDBColor,
+	Callback = function(v)
+		Compkiller.Colors.BGDBColor = v;
+		Compkiller:RefreshCurrentColor(v);
+	end,
+});
+
+Settings:AddButton({
+	Name = "Get Theme Colors",
+	Callback = function()
+		Notifier.new({
+			Title = "Theme Copied",
+			Content = "Theme colors copied to clipboard",
+			Duration = 5,
+			Icon = "rbxassetid://12293377909"
+		});
+	end,
+});
+
+-- =============================================
+-- CONFIG TAB
+-- =============================================
+local ConfigUI = Window:DrawConfig({
+	Name = "Config",
+	Icon = "folder",
+	Config = ConfigManager
+});
+
+ConfigUI:Init();
+
+-- =============================================
+-- GAME DATA LOADING
+-- =============================================
+
+local gardens = Workspace:FindFirstChild("Gardens")
+local Networking = require(ReplicatedStorage.SharedModules.Networking)
+
+-- Find player's plot
+local OwnerPlot = nil
+local function getMyPlot()
+	if not gardens then return nil end
+	for _, plot in ipairs(gardens:GetChildren()) do
+		if plot.Name:lower():find("plot") and plot:GetAttribute("Owner") == LocalPlayer.Name then
+			return plot
+		end
+	end
+	return nil
+end
+OwnerPlot = getMyPlot()
+
+-- Stock folders
+local SeedsStock = ReplicatedStorage.StockValues.SeedShop.Items
+local GearsStock = ReplicatedStorage.StockValues.GearShop.Items
+local CratesStock = ReplicatedStorage.StockValues.CrateShop.Items
+
+-- =============================================
+-- HARVEST FUNCTIONS
+-- =============================================
+
+local function isGrown(plant)
+	local maxAge = plant:GetAttribute("MaxAge")
+	local age = plant:GetAttribute("Age")
+	return maxAge and age and age >= maxAge
+end
+
+local function getHarvestablePlants()
+	if not OwnerPlot then return {} end
+	local result = {}
+	local plantsFolder = OwnerPlot:FindFirstChild("Plants")
+	if not plantsFolder then return result end
+
+	for _, plant in ipairs(plantsFolder:GetChildren()) do
+		local fruits = plant:FindFirstChild("Fruits")
+		if fruits then
+			for _, fruit in ipairs(fruits:GetChildren()) do
+				if fruit:IsA("Model") and isGrown(fruit) then
+					table.insert(result, fruit)
+				end
+			end
+		elseif plant:IsA("Model") and isGrown(plant) then
+			table.insert(result, plant)
+		end
+	end
+	return result
+end
+
+local function harvest(plant)
+	if not plant then return end
+	local plantId = plant:GetAttribute("PlantId")
+	local fruitId = plant:GetAttribute("FruitId") or ""
+	if plantId then
+		Networking.Garden.CollectFruit:Fire(plantId, fruitId)
+	end
+end
+
+task.spawn(function()
+	while task.wait(0.12) do
+		if autoHarvest then
+			if not OwnerPlot then OwnerPlot = getMyPlot() end
+			if OwnerPlot then
+				for _, plant in ipairs(getHarvestablePlants()) do
+					if autoHarvest then
+						harvest(plant)
+						task.wait(0.02)
+					end
+				end
+			end
+		end
+	end
+end)
+
+-- =============================================
+-- AUTO-SELL & SELL ALL INVENTORY (Shared Function)
+-- =============================================
+
+local function sellAll()
+	local ok, Net = pcall(function()
+		return require(ReplicatedStorage.SharedModules.Networking)
+	end)
+	if ok and Net and Net.NPCS and Net.NPCS.SellAll then
+		Net.NPCS.SellAll:Fire()
+		return true
+	else
+		local Packet = ReplicatedStorage:FindFirstChild("SharedModules")
+		if Packet then Packet = Packet:FindFirstChild("Packet") end
+		if Packet then Packet = Packet:FindFirstChild("RemoteEvent") end
+		if Packet then
+			Packet:FireServer(buffer.fromstring("\157\000\018"))
+			return true
+		end
+	end
+	return false
+end
+
+task.spawn(function()
+	while task.wait(sellCooldown) do
+		if autoSell then
+			pcall(sellAll)
+		end
+	end
+end)
+
+-- =============================================
+-- AUTO-BUY
+-- =============================================
+
+local PurchaseSeeds = Networking.SeedShop.PurchaseSeed
+local PurchaseGears = Networking.GearShop.PurchaseGear
+local PurchaseCrates = Networking.CrateShop.PurchaseCrate
+
+local prices = {}
+local playerdata = nil
+for i, v in pairs(getgc()) do
+	if type(v) == "function" then
+		if debug.info(v, "s"):match("RestockStoreController") then
+			if debug.info(v, "l") == 575 then
+				pcall(function()
+					table.insert(prices, debug.getupvalue(v, 3))
+					playerdata = debug.getupvalue(v, 9)
+				end)
+			end
+		end
+	end
+end
+
+local function canAfford(item)
+	if not prices or not playerdata then return false end
+	for _, options in pairs(prices) do
+		local success, result = pcall(function()
+			local itemData = options[item]
+			if not itemData then return false end
+			return (playerdata.Data.Sheckles or 0) >= itemData.price
+		end)
+		if success and result then
+			return true
+		end
+	end
+	return false
+end
+
+local function isExcluded(itemName)
+	for _, excluded in pairs(excludedItems) do
+		if excluded == itemName then
+			return true
+		end
+	end
+	return false
+end
+
+local function shouldBuyItem(itemName, selectedList)
+	if isExcluded(itemName) then return false end
+	if #selectedList == 0 then return false end
+	for _, name in pairs(selectedList) do
+		if name == itemName then
+			return true
+		end
+	end
+	return false
+end
+
+task.spawn(function()
+	while task.wait(0.1) do
+		if autoBuyEnabled then
+			-- Buy Seeds
+			for _, item in pairs(SeedsStock:GetChildren()) do
+				if item:IsA("IntValue") and item.Value > 0 then
+					if shouldBuyItem(item.Name, selectedSeeds) and canAfford(item.Name) then
+						pcall(function() PurchaseSeeds:Fire(item.Name) end)
+					end
+				end
+			end
+			-- Buy Gears
+			for _, item in pairs(GearsStock:GetChildren()) do
+				if item:IsA("IntValue") and item.Value > 0 then
+					if shouldBuyItem(item.Name, selectedGears) and canAfford(item.Name) then
+						pcall(function() PurchaseGears:Fire(item.Name) end)
+					end
+				end
+			end
+			-- Buy Crates
+			for _, item in pairs(CratesStock:GetChildren()) do
+				if item:IsA("IntValue") and item.Value > 0 then
+					if shouldBuyItem(item.Name, selectedCrates) and canAfford(item.Name) then
+						pcall(function() PurchaseCrates:Fire(item.Name) end)
+					end
+				end
+			end
+		end
+	end
+end)
+
+-- =============================================
+-- AUTO-STEAL
+-- =============================================
+
+local function safeRequire(module)
+	local success, result = pcall(function() return require(module) end)
+	if not success then
+		return nil
+	end
+	return result
+end
+
+local SharedModules = ReplicatedStorage:WaitForChild("SharedModules", 10)
+local NetworkingModule = safeRequire(SharedModules:WaitForChild("Networking", 10))
+local StealFlags = safeRequire(SharedModules:WaitForChild("Flags", 10):WaitForChild("StealFlags", 10))
+local FruitValueCalc = safeRequire(SharedModules:WaitForChild("FruitValueCalc", 10))
+local PlantCycleModule = safeRequire(LocalPlayer:WaitForChild("PlayerScripts", 10):WaitForChild("Controllers", 10):WaitForChild("PlantLifecycleHandler", 10))
+
+local Night = ReplicatedStorage:WaitForChild("Night", 10)
+
+local function isNightTime()
+	if not Night then return false end
+	local success, isBool = pcall(function() return Night:IsA("BoolValue") end)
+	if not success or not isBool then return false end
+	return Night.Value == true
+end
+
+local function canSteal(player)
+	if not player then return false end
+	local suc, result = pcall(function()
+		return player:GetAttribute("IsInOwnGarden")
+	end)
+	return result or false
+end
+
+local function teleportTo(hrp, startCFrame, targetCFrame, speed)
+	if not targetCFrame or typeof(targetCFrame) ~= "CFrame" then return end
+	if not startCFrame or typeof(startCFrame) ~= "CFrame" then return end
+	if not hrp or typeof(hrp) ~= "Instance" then return end
+	if not speed or typeof(speed) ~= "number" or speed <= 0 then return end
+
+	local distance = (targetCFrame.Position - startCFrame.Position).Magnitude
+	local duration = distance / speed
+	local elp = 0
+	local con
+
+	pcall(function()
+		con = RunService.RenderStepped:Connect(function(dt)
+			pcall(function()
+				elp = elp + dt
+				if elp >= duration then
+					if hrp and hrp.Parent ~= nil then hrp.CFrame = targetCFrame end
+					if con then con:Disconnect() end
+					return
+				end
+				local alpha = elp / duration
+				if hrp and hrp.Parent ~= nil then
+					hrp.CFrame = startCFrame:Lerp(targetCFrame, alpha)
+				else
+					if con then con:Disconnect() end
+					return
+				end
+			end)
+		end)
+	end)
+
+	if not con then return end
+	local waitStart = tick()
+	while con.Connected and tick() - waitStart < duration + 2 do task.wait() end
+	if con.Connected then pcall(function() con:Disconnect() end) end
+end
+
+local function getDecay(model)
+	if not PlantCycleModule then return 0 end
+	local success, Entries = pcall(function() return PlantCycleModule:GetActiveEntries() end)
+	if not success or not Entries or typeof(Entries) ~= "table" then return 0 end
+	if not model or not model:IsA("Model") then return 0 end
+
+	for plantid, planttable in pairs(Entries) do
+		local found = false
+		local decayValue = 0
+		pcall(function()
+			if planttable and planttable.Model and planttable.Model == model then
+				local a, b = string.match(plantid, "^(%d+)_(.+)$")
+				if a and b then
+					local decaySuccess, decay = pcall(function()
+						return PlantCycleModule:GetDecayAlpha(tonumber(a), b)
+					end)
+					if decaySuccess then
+						decayValue = decay or 0
+						found = true
+					end
+				end
+			end
+		end)
+		if found then return decayValue end
+	end
+	return 0
+end
+
+local function getHarvestableStealPlants()
+	local stealable = {}
+	if not gardens then return stealable end
+	
+	for _, plot in pairs(gardens:GetChildren()) do
+		if plot and plot:IsA("Model") then
+			local Plants = plot:FindFirstChild("Plants")
+			if Plants then
+				for _, model in pairs(Plants:GetChildren()) do
+					if model and model:IsA("Model") then
+						local Fruits = model:FindFirstChild("Fruits")
+						if Fruits then
+							for _, fruit in pairs(Fruits:GetChildren()) do
+								if fruit and fruit:IsA("Model") then
+									local seedName = model:GetAttribute("SeedName") or model:GetAttribute("CorePartName")
+									if seedName then
+										local plantid = model:GetAttribute("PlantId")
+										if plantid and StealFlags and StealFlags.IsPlantStealable then
+											local valid = StealFlags.IsPlantStealable(seedName)
+											if valid then
+												local targetuserid = model:GetAttribute("UserId")
+												if targetuserid then
+													local targetplayer = Players:GetPlayerByUserId(tonumber(targetuserid))
+													if targetplayer and not canSteal(targetplayer) then
+														table.insert(stealable, model)
+													end
+												end
+											end
+										end
+									end
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+	return stealable
+end
+
+local function performSteal(model)
+	if not isNightTime() then
+		return false
+	end
+	if not model then
+		return false
+	end
+
+	local ownerId = tonumber(model:GetAttribute("UserId"))
+	if not ownerId then return false end
+
+	local plantId = model:GetAttribute("PlantId")
+	if not plantId or type(plantId) ~= "string" then
+		return false
+	end
+
+	local fruitId = model:GetAttribute("FruitId") or ""
+	if type(fruitId) ~= "string" then
+		return false
+	end
+
+	local char = LocalPlayer.Character
+	if not char then return false end
+
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp then return false end
+
+	local plotsizeref = OwnerPlot:FindFirstChild("PlotSizeReference")
+	if not plotsizeref then return false end
+
+	local oldPos = plotsizeref.CFrame
+	local basePart = model:FindFirstChildWhichIsA("BasePart")
+	if not basePart then return false end
+
+	local target = basePart.CFrame + Vector3.new(0, 3, 0)
+
+	teleportTo(hrp, oldPos, target, 33.8)
+	task.wait(1)
+
+	if NetworkingModule and NetworkingModule.Steal then
+		if NetworkingModule.Steal.BeginSteal then
+			NetworkingModule.Steal.BeginSteal:Fire(ownerId, plantId, fruitId)
+		end
+		if NetworkingModule.Steal.CompleteSteal then
+			NetworkingModule.Steal.CompleteSteal:Fire()
+		end
+	else
+		teleportTo(hrp, target, oldPos, 33.8)
+		return false
+	end
+
+	task.wait(1)
+	teleportTo(hrp, target, oldPos, 33.8)
+	return true
+end
+
+task.spawn(function()
+	while task.wait(1) do
+		if autoStealEnabled then
+			pcall(function()
+				local plants = getHarvestableStealPlants()
+				if #plants == 0 then
+					return
+				end
+				for _, plant in pairs(plants) do
+					if autoStealEnabled then
+						local success = performSteal(plant)
+						if success then
+							task.wait(0.5)
+						end
+					end
+				end
+			end)
+		end
+	end
+end)
