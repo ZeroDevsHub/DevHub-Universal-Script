@@ -1,0 +1,1027 @@
+-- =============================================
+-- DEVHUB - BLOX STRIKE / COUNTER BLOX
+-- Made By ZeroDev
+-- Optimized for Mobile & PC (No Lag)
+-- =============================================
+
+-- =============================================
+-- LOAD COMPKILLER UI
+-- =============================================
+local Compkiller = loadstring(game:HttpGet("https://raw.githubusercontent.com/4lpaca-pin/CompKiller/refs/heads/main/src/source.luau"))();
+
+local Notifier = Compkiller.newNotify();
+local ConfigManager = Compkiller:ConfigManager({
+	Directory = "DevHubConfig",
+	Config = "BloxStrike-Config"
+});
+
+Compkiller:Loader("rbxassetid://12293377909", 1.5).yield();
+
+local MenuKey = "LeftAlt";
+local Window = Compkiller.new({
+	Name = "DevHub",
+	Keybind = MenuKey,
+	Logo = "rbxassetid://12293377909",
+	Scale = Compkiller.Scale.Window,
+	TextSize = 15,
+});
+
+Notifier.new({
+	Title = "DevHub",
+	Content = "Made By ZeroDev ❤️",
+	Duration = 8,
+	Icon = "rbxassetid://12293377909"
+});
+
+-- =============================================
+-- DETECT PLATFORM
+-- =============================================
+local UserInputService = game:GetService("UserInputService")
+local IsMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+-- =============================================
+-- WATERMARK (hide on mobile to reduce UI clutter)
+-- =============================================
+local Watermark
+if not IsMobile then
+	Watermark = Window:Watermark();
+	Watermark:AddText({ Icon = "user", Text = "DevHub" });
+	Watermark:AddText({ Icon = "clock", Text = Compkiller:GetDate() });
+	local Time = Watermark:AddText({ Icon = "timer", Text = "TIME" });
+	task.spawn(function()
+		while true do task.wait()
+			Time:SetText(Compkiller:GetTimeNow());
+		end
+	end)
+	Watermark:AddText({ Icon = "server", Text = Compkiller.Version });
+end
+
+-- =============================================
+-- USER SETTINGS (hide keybind settings on mobile)
+-- =============================================
+local UserSettings = Window.UserSettings:Create();
+UserSettings:AddColorPicker({
+	Name = "Menu Color",
+	Default = Compkiller.Colors.Highlight,
+	Callback = function(f)
+		Compkiller.Colors.Highlight = f;
+		Compkiller:RefreshCurrentColor();
+	end,
+});
+if not IsMobile then
+	UserSettings:AddKeybind({
+		Name = "Menu Key",
+		Default = MenuKey,
+		Callback = function(f)
+			MenuKey = f;
+			Window:SetMenuKey(MenuKey)
+		end,
+	});
+end
+UserSettings:AddDropdown({
+	Name = "Menu Language",
+	Values = {"English"},
+	Default = "English",
+	Callback = print
+});
+UserSettings:AddDropdown({
+	Name = "Menu Theme",
+	Values = {"Default", "Dark Green", "Dark Blue", "Purple Rose", "Skeet"},
+	Default = "Default",
+	Callback = function(f) Compkiller:SetTheme(f) end,
+});
+if not IsMobile then
+	UserSettings:AddDropdown({
+		Name = "Visible Widgets",
+		Values = {"Watermark", "Keybinds", "Double Tab"},
+		Multi = true,
+		Default = {"Watermark"},
+		Callback = function(f) print(f) end,
+	});
+end
+
+-- =============================================
+-- CREATE TABS
+-- =============================================
+Window:DrawCategory({ Name = "Blox Strike" });
+
+local CombatTab = Window:DrawTab({ Name = "Combat", Icon = "crosshair", EnableScrolling = true });
+local VisualsTab = Window:DrawTab({ Name = "Visuals", Icon = "eye", EnableScrolling = true });
+local MiscTab = Window:DrawTab({ Name = "Misc", Icon = "settings", EnableScrolling = true });
+local ConfigTab = Window:DrawConfig({ Name = "Config", Icon = "folder", Config = ConfigManager });
+ConfigTab:Init();
+
+-- =============================================
+-- SERVICES & GLOBALS
+-- =============================================
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+_G.LoadStage = 0 
+_G.Config = {
+    SilentAim = false,
+    NoSpread = false,
+    ShowTracers = false,
+    PlayHitSound = false,
+    ShowHitLogs = false,
+    ShowPenetration = false, 
+    FovRadius = 150,
+    ShowFov = false,
+    FovColor = Color3.fromRGB(255, 255, 255),
+    AimPart = "Head",
+    ShowHitmark = false,
+    NoRecoilVisual = true,   
+    NoRecoilReal = true,   
+    CustomFov = 90, 
+    EnableFov = false,
+    Bhop = false,
+    BhopSpeed = 18,
+    NoFallDamage = false, 
+    NoFlash = false, 
+    NoSmoke = false, 
+    ColoredSmoke = false, 
+    CustomParticles = false, 
+    ParticleColor = Color3.fromRGB(170, 0, 255), 
+    KillEffect = false, 
+    KillEffectMode = "Rocket", 
+    KillEffectDuration = 3, 
+    SmokeColor = Color3.fromRGB(255, 0, 0), 
+    AutoFire = false,
+    MinHitChance = 50, 
+    WallBang = false,
+    ShowWallbangIndicator = false,
+    AntiAim = false,
+    AntiAimPitchMode = "Down", 
+    AntiAimBackwards = false, 
+    FakeDuck = false,
+    ThirdPerson = false,
+    ThirdPersonDist = 10,
+    AutoStop = false, 
+    AutoScope = false,
+    TargetMode = "Near Crosshair", 
+    AimHitboxes = {"Head", "HumanoidRootPart"}, 
+    -- ESP Settings
+    EspEnabled = false,
+    EspBoxes = false,
+    EspNames = false,
+    EspHealth = false,
+    EspDistance = false,
+    EspTracers = false,
+    EspSkeleton = false,
+    EspMaxDist = 500,
+    EspBoxThick = 1.5,
+    EspEnemyColor = Color3.fromRGB(255,50,70),
+    EspFriendColor = Color3.fromRGB(0,220,100),
+    EspSkelColor = Color3.fromRGB(0,200,255),
+    EspTeamCheck = true,
+    -- Aimbot Settings
+    AimbotEnabled = false,
+    AimbotSmooth = 5,
+    AimbotBone = "Head",
+    AimbotPrediction = false,
+    PredictionAmount = 0.12,
+    -- Misc
+    TriggerbotEnabled = false,
+    TriggerbotDelay = 0.05,
+    AntiFlashEnabled = false,
+    FullbrightEnabled = false,
+    CrosshairEnabled = false,
+    CrosshairSize = 8,
+    CrosshairGap = 5,
+    CrosshairColor = Color3.fromRGB(0,255,120),
+    AutoFireMobile = false,
+    AutoShootDelay = 0.1
+}
+_G.LocalShots = {} 
+
+-- =============================================
+-- ESP SYSTEM (OPTIMIZED)
+-- =============================================
+local espDrawings = {}
+
+local function isTeammate(p)
+    if not _G.Config.EspTeamCheck then return false end
+    if not LocalPlayer.Team or not p.Team then return false end
+    return p.TeamColor == LocalPlayer.TeamColor
+end
+
+local function getRootPart(p) return p.Character and p.Character:FindFirstChild("HumanoidRootPart") end
+local function getHumanoid(p) return p.Character and p.Character:FindFirstChildOfClass("Humanoid") end
+local function getHead(p) return p.Character and p.Character:FindFirstChild("Head") end
+local function isAlive(p) local h = getHumanoid(p); return h and h.Health > 0 end
+
+local function killDrawing(obj) if obj then pcall(function() obj.Visible = false; obj:Remove() end) end end
+
+local function destroyEsp(player)
+    local d = espDrawings[player]
+    if not d then return end
+    killDrawing(d.box)
+    killDrawing(d.hpBg)
+    killDrawing(d.hpBar)
+    killDrawing(d.distText)
+    killDrawing(d.nameText)
+    killDrawing(d.tracer)
+    if d.skel then for _,l in ipairs(d.skel) do killDrawing(l) end end
+    if d.highlight then pcall(function() d.highlight:Destroy() end) end
+    espDrawings[player] = nil
+end
+
+local function getOrCreateEsp(player)
+    local name = player.Name
+    if espDrawings[name] then return espDrawings[name] end
+    local d = {}
+    d.box = Drawing.new("Square")
+    d.box.Visible = false; d.box.Filled = false; d.box.Thickness = _G.Config.EspBoxThick
+    d.hpBg = Drawing.new("Square")
+    d.hpBg.Visible = false; d.hpBg.Filled = true; d.hpBg.Color = Color3.fromRGB(12,12,12); d.hpBg.Transparency = 0.35
+    d.hpBar = Drawing.new("Square")
+    d.hpBar.Visible = false; d.hpBar.Filled = true; d.hpBar.Color = Color3.fromRGB(0,215,75)
+    d.distText = Drawing.new("Text")
+    d.distText.Visible = false; d.distText.Size = 13; d.distText.Font = Drawing.Fonts.UI
+    d.distText.Center = true; d.distText.Outline = true; d.distText.OutlineColor = Color3.fromRGB(0,0,0)
+    d.nameText = Drawing.new("Text")
+    d.nameText.Visible = false; d.nameText.Size = 13; d.nameText.Font = Drawing.Fonts.UI
+    d.nameText.Center = true; d.nameText.Outline = true; d.nameText.OutlineColor = Color3.fromRGB(0,0,0)
+    d.tracer = Drawing.new("Line")
+    d.tracer.Visible = false; d.tracer.Thickness = 1
+    d.skel = {}
+    local skelPairs = {
+        {"Head","UpperTorso"},{"UpperTorso","LowerTorso"},
+        {"UpperTorso","RightUpperArm"},{"RightUpperArm","RightLowerArm"},{"RightLowerArm","RightHand"},
+        {"UpperTorso","LeftUpperArm"},{"LeftUpperArm","LeftLowerArm"},{"LeftLowerArm","LeftHand"},
+        {"LowerTorso","RightUpperLeg"},{"RightUpperLeg","RightLowerLeg"},{"RightLowerLeg","RightFoot"},
+        {"LowerTorso","LeftUpperLeg"},{"LeftUpperLeg","LeftLowerLeg"},{"LeftLowerLeg","LeftFoot"},
+    }
+    for i = 1, #skelPairs do
+        local l = Drawing.new("Line")
+        l.Visible = false; l.Thickness = 1
+        d.skel[i] = l
+    end
+    d.highlight = nil
+    espDrawings[name] = d
+    return d
+end
+
+local espUpdateCounter = 0
+local function updatePlayerEsp(player)
+    if player == LocalPlayer then return end
+    local d = getOrCreateEsp(player)
+    local alive = isAlive(player)
+    local mate = isTeammate(player)
+    local show = alive and not (mate and _G.Config.EspTeamCheck)
+    local hrp = getRootPart(player)
+    local col = mate and _G.Config.EspFriendColor or _G.Config.EspEnemyColor
+
+    local sb = nil
+    if show and hrp then
+        local headP = getHead(player)
+        local topPos = headP and (headP.Position + Vector3.new(0,0.55,0)) or (hrp.Position + Vector3.new(0,3,0))
+        local botPos = hrp.Position - Vector3.new(0,3.05,0)
+        local top, tv = Camera:WorldToViewportPoint(topPos)
+        local bot, bv = Camera:WorldToViewportPoint(botPos)
+        local dist = (hrp.Position - Camera.CFrame.Position).Magnitude
+        if tv and bv and top.Z > 0 and bot.Z > 0 and dist <= _G.Config.EspMaxDist then
+            local bH = math.abs(top.Y - bot.Y)
+            local bW = bH * 0.58
+            sb = {x = top.X - bW/2, y = math.min(top.Y, bot.Y), w = bW, h = bH, dist = dist}
+        end
+    end
+
+    if _G.Config.EspBoxes and sb then
+        d.box.Size = Vector2.new(sb.w, sb.h)
+        d.box.Position = Vector2.new(sb.x, sb.y)
+        d.box.Color = col
+        d.box.Thickness = _G.Config.EspBoxThick
+        d.box.Visible = true
+    else d.box.Visible = false end
+
+    if _G.Config.EspHealth and sb then
+        local hum = getHumanoid(player)
+        local pct = hum and math.clamp(hum.Health / math.max(hum.MaxHealth, 1), 0, 1) or 1
+        local fullH = sb.h
+        local fillH = math.max(1, fullH * pct)
+        local barX = sb.x - 5 - 3
+        d.hpBg.Size = Vector2.new(4, fullH)
+        d.hpBg.Position = Vector2.new(barX, sb.y)
+        d.hpBg.Visible = true
+        d.hpBar.Size = Vector2.new(2, fullH * pct)
+        d.hpBar.Position = Vector2.new(barX + 1, sb.y + fullH * (1 - pct))
+        d.hpBar.Color = Color3.fromRGB(0, 215, 75)
+        d.hpBar.Visible = true
+    else d.hpBg.Visible = false; d.hpBar.Visible = false end
+
+    if _G.Config.EspDistance and sb then
+        d.distText.Text = math.floor(sb.dist) .. "m"
+        d.distText.Position = Vector2.new(sb.x + sb.w/2, sb.y - 16)
+        d.distText.Color = Color3.fromRGB(195,215,255)
+        d.distText.Visible = true
+    else d.distText.Visible = false end
+
+    if _G.Config.EspNames and sb then
+        d.nameText.Text = player.Name
+        d.nameText.Position = Vector2.new(sb.x + sb.w/2, sb.y - (_G.Config.EspDistance and -29 or -16))
+        d.nameText.Color = col
+        d.nameText.Visible = true
+    else d.nameText.Visible = false end
+
+    if _G.Config.EspTracers and show and hrp then
+        local footPos = hrp.Position - Vector3.new(0,3.05,0)
+        local sp, on = Camera:WorldToViewportPoint(footPos)
+        local dist = (hrp.Position - Camera.CFrame.Position).Magnitude
+        if on and sp.Z > 0 and dist <= _G.Config.EspMaxDist then
+            local vp = Camera.ViewportSize
+            d.tracer.From = Vector2.new(vp.X/2, vp.Y)
+            d.tracer.To = Vector2.new(sp.X, sp.Y)
+            d.tracer.Color = col
+            d.tracer.Thickness = 1
+            d.tracer.Visible = true
+        else d.tracer.Visible = false end
+    else d.tracer.Visible = false end
+
+    local used = 0
+    if _G.Config.EspSkeleton and show and player.Character then
+        local char = player.Character
+        for _, pair in ipairs({
+            {"Head","UpperTorso"},{"UpperTorso","LowerTorso"},
+            {"UpperTorso","RightUpperArm"},{"RightUpperArm","RightLowerArm"},
+            {"UpperTorso","LeftUpperArm"},{"LeftUpperArm","LeftLowerArm"},
+            {"LowerTorso","RightUpperLeg"},{"RightUpperLeg","RightLowerLeg"},
+            {"LowerTorso","LeftUpperLeg"},{"LeftUpperLeg","LeftLowerLeg"},
+        }) do
+            local pA = char:FindFirstChild(pair[1])
+            local pB = char:FindFirstChild(pair[2])
+            if pA and pB then
+                local spA, onA = Camera:WorldToViewportPoint(pA.Position)
+                local spB, onB = Camera:WorldToViewportPoint(pB.Position)
+                if onA and onB and spA.Z > 0 and spB.Z > 0 then
+                    used = used + 1
+                    local sl = d.skel[used]
+                    if sl then
+                        sl.From = Vector2.new(spA.X, spA.Y)
+                        sl.To = Vector2.new(spB.X, spB.Y)
+                        sl.Color = _G.Config.EspSkelColor
+                        sl.Thickness = 1
+                        sl.Visible = true
+                    end
+                end
+            end
+        end
+    end
+    for i = used + 1, 10 do
+        local sl = d.skel[i]
+        if sl then sl.Visible = false end
+    end
+
+    if _G.Config.EspEnabled and show and player.Character then
+        if not d.highlight or d.highlight.Parent == nil then
+            if d.highlight then pcall(function() d.highlight:Destroy() end) end
+            local hl = Instance.new("Highlight")
+            hl.Adornee = player.Character
+            hl.FillColor = col
+            hl.OutlineColor = col
+            hl.FillTransparency = 0.60
+            hl.OutlineTransparency = 0.05
+            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            hl.Parent = player.Character
+            d.highlight = hl
+        end
+    elseif d.highlight then
+        pcall(function() d.highlight:Destroy() end)
+        d.highlight = nil
+    end
+end
+
+-- =============================================
+-- FOV CIRCLE
+-- =============================================
+local fovCircle = Drawing.new("Circle")
+fovCircle.Thickness = 1.5
+fovCircle.Transparency = 0.5
+fovCircle.Color = Color3.fromRGB(255, 255, 255)
+fovCircle.Filled = false
+fovCircle.Visible = false
+fovCircle.NumSides = 48  -- fewer sides for performance
+
+-- =============================================
+-- CROSSHAIR
+-- =============================================
+local chLines = {}
+for i = 1, 4 do 
+    local l = Drawing.new("Line")
+    l.Visible = false
+    l.Thickness = 1.5
+    l.Color = _G.Config.CrosshairColor
+    chLines[i] = l
+end
+local chDot = Drawing.new("Circle")
+chDot.Visible = false
+chDot.Radius = 2
+chDot.Color = _G.Config.CrosshairColor
+chDot.Filled = true
+chDot.Thickness = 1
+
+local function updateCrosshair()
+    if not _G.Config.CrosshairEnabled then
+        for i = 1, 4 do chLines[i].Visible = false end
+        chDot.Visible = false
+        return
+    end
+    if UserInputService:GetFocusedTextBox() then return end
+    local cx = Camera.ViewportSize.X / 2
+    local cy = Camera.ViewportSize.Y / 2
+    local g = _G.Config.CrosshairGap
+    local s = _G.Config.CrosshairSize
+    chLines[1].From = Vector2.new(cx, cy - g)
+    chLines[1].To = Vector2.new(cx, cy - g - s)
+    chLines[2].From = Vector2.new(cx, cy + g)
+    chLines[2].To = Vector2.new(cx, cy + g + s)
+    chLines[3].From = Vector2.new(cx - g, cy)
+    chLines[3].To = Vector2.new(cx - g - s, cy)
+    chLines[4].From = Vector2.new(cx + g, cy)
+    chLines[4].To = Vector2.new(cx + g + s, cy)
+    for i = 1, 4 do
+        chLines[i].Color = _G.Config.CrosshairColor
+        chLines[i].Visible = true
+    end
+    chDot.Position = Vector2.new(cx, cy)
+    chDot.Color = _G.Config.CrosshairColor
+    chDot.Visible = true
+end
+
+-- =============================================
+-- SILENT AIM / GET CLOSEST TARGET
+-- =============================================
+local function getClosestTarget(fovRadius)
+    fovRadius = fovRadius or _G.Config.FovRadius
+    local best, bestDist, bestPos = nil, fovRadius, nil
+    local vp = Camera.ViewportSize
+    local ctr = Vector2.new(vp.X / 2, vp.Y / 2)
+
+    for _, p in pairs(Players:GetPlayers()) do
+        if p == LocalPlayer or isTeammate(p) or not isAlive(p) then continue end
+        local bone = p.Character:FindFirstChild(_G.Config.AimPart or "Head") or getRootPart(p)
+        if not bone then continue end
+
+        local worldPos = bone.Position
+        if _G.Config.AimbotPrediction and getRootPart(p) then
+            worldPos = worldPos + getRootPart(p).Velocity * _G.Config.PredictionAmount
+        end
+
+        local sp, onScreen = Camera:WorldToViewportPoint(worldPos)
+        if not onScreen or sp.Z <= 0 then continue end
+
+        local screenPos = Vector2.new(sp.X, sp.Y)
+        local dist = (screenPos - ctr).Magnitude
+        if dist < bestDist then
+            bestDist = dist
+            best = bone
+            bestPos = worldPos
+        end
+    end
+    return best, bestPos
+end
+
+local function draw_tracer(origin, target_pos)
+    local beam = Instance.new("Beam")
+    local att0 = Instance.new("Attachment")
+    local att1 = Instance.new("Attachment")
+    local part0 = Instance.new("Part", Workspace)
+    part0.Size = Vector3.new(0.01, 0.01, 0.01)
+    part0.Position = origin
+    part0.Anchored = true
+    part0.Transparency = 1
+    part0.CanCollide = false
+    local part1 = Instance.new("Part", Workspace)
+    part1.Size = Vector3.new(0.01, 0.01, 0.01)
+    part1.Position = target_pos
+    part1.Anchored = true
+    part1.Transparency = 1
+    part1.CanCollide = false
+    att0.Parent = part0
+    att1.Parent = part1
+    beam.Attachment0 = att0
+    beam.Attachment1 = att1
+    beam.Parent = Workspace
+    beam.Texture = "http://www.roblox.com/asset/?id=446111271"
+    beam.TextureSpeed = 4
+    beam.Width0 = 0.15
+    beam.Width1 = 0.15
+    beam.LightEmission = 1
+    beam.LightInfluence = 0
+    beam.Color = ColorSequence.new(_G.Config.BulletTracerColor or Color3.fromRGB(80, 200, 255))
+    beam.Transparency = NumberSequence.new(0)
+    task.delay(_G.Config.TracerDuration or 1.5, function()
+        beam:Destroy()
+        part0:Destroy()
+        part1:Destroy()
+    end)
+end
+
+local function SpawnHitmarker(position)
+    if not _G.Config.ShowHitmark then return end
+    local hitpart = Instance.new("Part", Workspace)
+    hitpart.Transparency = 1
+    hitpart.CanCollide = false
+    hitpart.CanQuery = false
+    hitpart.Size = Vector3.new(0.01,0.01,0.01)
+    hitpart.Anchored = true
+    hitpart.Position = position
+    hitpart.Name = "BloxStrikeHitmarker"
+    local hit = Instance.new("BillboardGui")
+    hit.Name = "hit"
+    hit.AlwaysOnTop = true
+    hit.Parent = hitpart
+    hit.Size = UDim2.new(0, 50, 0, 50)
+    hit.Adornee = hitpart
+    local hit_img = Instance.new("ImageLabel")
+    hit_img.Name = "hit_img"
+    hit_img.Image = "http://www.roblox.com/asset/?id=10922361372"
+    hit_img.BackgroundTransparency = 1
+    hit_img.Size = UDim2.new(0, 23, 0, 23)
+    hit_img.Visible = true
+    hit_img.ImageColor3 = _G.Config.HitmarkColor or Color3.new(1,1,1)
+    hit_img.Rotation = 45
+    hit_img.AnchorPoint = Vector2.new(0.5, 0.5)
+    hit_img.Position = UDim2.new(0.5, 0, 0.5, 0)
+    hit_img.Parent = hit
+    task.spawn(function()
+        local duration = _G.Config.HitmarkDuration or 0.5
+        local ts = game:GetService("TweenService")
+        local tweninfo = TweenInfo.new(duration, Enum.EasingStyle.Sine)
+        local tweninfo2 = TweenInfo.new(duration, Enum.EasingStyle.Linear)
+        ts:Create(hit_img, tweninfo, {ImageTransparency = 1}):Play()
+        ts:Create(hit_img, tweninfo2, {Rotation = 180}):Play()
+        task.wait(duration)
+        if hit_img then hit_img:Destroy() end
+        if hit then hit:Destroy() end
+        if hitpart then hitpart:Destroy() end
+    end)
+end
+
+local function playHitSound()
+    if not _G.Config.PlayHitSound then return end
+    local s = Instance.new("Sound")
+    s.SoundId = "rbxassetid://1255040462"
+    s.Volume = 1
+    s.PlayOnRemove = true
+    s.Parent = Workspace
+    s:Destroy()
+end
+
+-- =============================================
+-- HOOK BULLET MODULE (with fallback)
+-- =============================================
+local function SetupSilentAim()
+    local success, err = pcall(function()
+        local BulletModule = ReplicatedStorage:FindFirstChild("Components")
+        if not BulletModule then return end
+        local WeaponModule = BulletModule:FindFirstChild("Weapon")
+        if not WeaponModule then return end
+        local ClassesModule = WeaponModule:FindFirstChild("Classes")
+        if not ClassesModule then return end
+        local Bullet = ClassesModule:FindFirstChild("Bullet")
+        if not Bullet then return end
+        
+        local BulletModule = require(Bullet)
+        local originalPerformRaycast = BulletModule._performRaycast
+        
+        if originalPerformRaycast then
+            BulletModule._performRaycast = function(self, spreadAmount)
+                if _G.Config.NoSpread or _G.Config.SilentAim then
+                    spreadAmount = 0
+                end
+                local target, targetPart, targetPoint = getClosestTarget(_G.Config.FovRadius or 150)
+                local startPos = Camera and Camera.CFrame.Position
+                if _G.Config.SilentAim and target and target.Character and targetPart and startPos then
+                    local targetPos = targetPoint or targetPart.Position
+                    local originalCamCFrame = Camera.CFrame
+                    Camera.CFrame = CFrame.new(startPos, targetPos)
+                    local direction = (targetPos - startPos).Unit
+                    local fakeResult = {
+                        Hits = {{Instance = targetPart, Position = targetPos, Normal = Vector3.new(0, 1, 0)}},
+                        Ray = Ray.new(startPos, direction),
+                        Instance = targetPart,
+                        Position = targetPos,
+                    }
+                    Camera.CFrame = originalCamCFrame
+                    
+                    if _G.Config.ShowTracers then draw_tracer(startPos, targetPos) end
+                    if _G.Config.PlayHitSound then playHitSound() end
+                    if _G.Config.ShowHitmark then SpawnHitmarker(targetPos) end
+                    
+                    return fakeResult
+                end
+                
+                local result = originalPerformRaycast(self, spreadAmount)
+                if result and result.Hits then
+                    local finalHit = result.Hits[#result.Hits]
+                    if finalHit and finalHit.Instance and finalHit.Position then
+                        if _G.Config.ShowTracers then draw_tracer(startPos, finalHit.Position) end
+                        if _G.Config.PlayHitSound then playHitSound() end
+                        if _G.Config.ShowHitmark then SpawnHitmarker(finalHit.Position) end
+                    end
+                end
+                return result
+            end
+        end
+    end)
+    if not success then
+        warn("Silent aim hook failed: " .. tostring(err))
+    end
+end
+
+-- =============================================
+-- MOBILE AUTO-FIRE
+-- =============================================
+local mobileShootTimer = 0
+
+local function MobileAutoFire()
+    if not _G.Config.AutoFireMobile then return end
+    if not IsMobile then return end
+    
+    local target, targetPos = getClosestTarget(_G.Config.FovRadius)
+    if not target or not targetPos then return end
+    
+    local now = tick()
+    if now - mobileShootTimer < _G.Config.AutoShootDelay then return end
+    
+    local vp = Camera.ViewportSize
+    local ctr = Vector2.new(vp.X / 2, vp.Y / 2)
+    local sp, onScreen = Camera:WorldToViewportPoint(targetPos)
+    if not onScreen then return end
+    local screenPos = Vector2.new(sp.X, sp.Y)
+    local dist = (screenPos - ctr).Magnitude
+    if dist > _G.Config.FovRadius then return end
+    
+    mobileShootTimer = now
+    pcall(function()
+        local vi = game:GetService("VirtualInputManager")
+        vi:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+        task.wait(0.05)
+        vi:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+    end)
+end
+
+-- =============================================
+-- UI: COMBAT TAB
+-- =============================================
+local CombatSection = CombatTab:DrawSection({ Name = "Silent Aim", Position = 'left' });
+CombatSection:AddToggle({ Name = "Enable Silent Aim", Default = false, Callback = function(v) _G.Config.SilentAim = v end });
+CombatSection:AddToggle({ Name = "Show FOV Circle", Default = false, Callback = function(v) _G.Config.ShowFov = v end });
+CombatSection:AddColorPicker({ Name = "FOV Color", Default = Color3.fromRGB(255, 255, 255), Callback = function(c) _G.Config.FovColor = c; fovCircle.Color = c end });
+CombatSection:AddSlider({ Name = "FOV Radius", Min = 10, Max = 800, Step = 10, Default = 150, Callback = function(v) _G.Config.FovRadius = v; fovCircle.Radius = v end });
+CombatSection:AddSlider({ Name = "Min Hit Chance", Min = 0, Max = 100, Step = 1, Default = 50, Callback = function(v) _G.Config.MinHitChance = v end });
+CombatSection:AddToggle({ Name = "Wall Bang", Default = false, Callback = function(v) _G.Config.WallBang = v end });
+CombatSection:AddToggle({ Name = "No Spread", Default = false, Callback = function(v) _G.Config.NoSpread = v end });
+CombatSection:AddDropdown({ Name = "Target Mode", Values = {"Near Crosshair", "Highest Damage"}, Default = "Near Crosshair", Callback = function(v) _G.Config.TargetMode = v end });
+CombatSection:AddDropdown({ Name = "Aim Hitboxes", Values = {"Head", "UpperTorso", "LowerTorso", "HumanoidRootPart"}, Multi = true, Default = {"Head"}, Callback = function(v) _G.Config.AimHitboxes = v end });
+
+local AimbotSection = CombatTab:DrawSection({ Name = "Aimbot (Hold RMB / Touch)", Position = 'right' });
+AimbotSection:AddToggle({ Name = "Enable Aimbot", Default = false, Callback = function(v) _G.Config.AimbotEnabled = v end });
+AimbotSection:AddSlider({ Name = "Smoothness (1=slow, 10=instant)", Min = 1, Max = 10, Step = 1, Default = 5, Callback = function(v) _G.Config.AimbotSmooth = v end });
+AimbotSection:AddDropdown({ Name = "Target Bone", Values = {"Head", "HumanoidRootPart"}, Default = {"Head"}, Callback = function(v) _G.Config.AimbotBone = v[1] end });
+AimbotSection:AddToggle({ Name = "Bullet Prediction", Default = false, Callback = function(v) _G.Config.AimbotPrediction = v end });
+AimbotSection:AddSlider({ Name = "Prediction Strength", Min = 1, Max = 30, Step = 1, Default = 12, Callback = function(v) _G.Config.PredictionAmount = v * 0.01 end });
+
+local MobileFireSection = CombatTab:DrawSection({ Name = "Mobile Auto-Fire", Position = 'right' });
+MobileFireSection:AddToggle({ Name = "Auto Fire (Mobile)", Default = false, Callback = function(v) _G.Config.AutoFireMobile = v end });
+MobileFireSection:AddSlider({ Name = "Shoot Delay", Min = 0.01, Max = 0.5, Step = 0.01, Default = 0.1, Callback = function(v) _G.Config.AutoShootDelay = v end });
+
+local TriggerSection = CombatTab:DrawSection({ Name = "Triggerbot", Position = 'left' });
+TriggerSection:AddToggle({ Name = "Enable Triggerbot", Default = false, Callback = function(v) _G.Config.TriggerbotEnabled = v end });
+TriggerSection:AddSlider({ Name = "Trigger Delay", Min = 1, Max = 30, Step = 1, Default = 5, Callback = function(v) _G.Config.TriggerbotDelay = v * 0.01 end });
+
+-- =============================================
+-- UI: VISUALS TAB
+-- =============================================
+local EspSection = VisualsTab:DrawSection({ Name = "ESP Settings", Position = 'left' });
+EspSection:AddToggle({ Name = "Enable ESP", Default = false, Callback = function(v) _G.Config.EspEnabled = v end });
+EspSection:AddToggle({ Name = "Boxes", Default = false, Callback = function(v) _G.Config.EspBoxes = v end });
+EspSection:AddToggle({ Name = "Names", Default = false, Callback = function(v) _G.Config.EspNames = v end });
+EspSection:AddToggle({ Name = "Health Bar", Default = false, Callback = function(v) _G.Config.EspHealth = v end });
+EspSection:AddToggle({ Name = "Distance", Default = false, Callback = function(v) _G.Config.EspDistance = v end });
+EspSection:AddToggle({ Name = "Tracers", Default = false, Callback = function(v) _G.Config.EspTracers = v end });
+EspSection:AddToggle({ Name = "Skeleton", Default = false, Callback = function(v) _G.Config.EspSkeleton = v end });
+EspSection:AddToggle({ Name = "Team Check", Default = true, Callback = function(v) _G.Config.EspTeamCheck = v end });
+EspSection:AddSlider({ Name = "Max Distance", Min = 50, Max = 1000, Step = 10, Default = 500, Callback = function(v) _G.Config.EspMaxDist = v end });
+EspSection:AddSlider({ Name = "Box Thickness", Min = 1, Max = 4, Step = 1, Default = 2, Callback = function(v) _G.Config.EspBoxThick = v end });
+
+local ColorSection = VisualsTab:DrawSection({ Name = "ESP Colors", Position = 'right' });
+ColorSection:AddColorPicker({ Name = "Enemy Color", Default = Color3.fromRGB(255, 50, 70), Callback = function(c) _G.Config.EspEnemyColor = c end });
+ColorSection:AddColorPicker({ Name = "Friend Color", Default = Color3.fromRGB(0, 220, 100), Callback = function(c) _G.Config.EspFriendColor = c end });
+ColorSection:AddColorPicker({ Name = "Skeleton Color", Default = Color3.fromRGB(0, 200, 255), Callback = function(c) _G.Config.EspSkelColor = c end });
+
+local EffectsSection = VisualsTab:DrawSection({ Name = "Effects", Position = 'left' });
+EffectsSection:AddToggle({ Name = "Show Tracers", Default = false, Callback = function(v) _G.Config.ShowTracers = v end });
+EffectsSection:AddSlider({ Name = "Tracer Duration", Min = 1, Max = 10, Step = 1, Default = 2, Callback = function(v) _G.Config.TracerDuration = v end });
+EffectsSection:AddColorPicker({ Name = "Tracer Color", Default = Color3.fromRGB(0, 100, 255), Callback = function(c) _G.Config.BulletTracerColor = c end });
+EffectsSection:AddToggle({ Name = "Show Hitmark", Default = false, Callback = function(v) _G.Config.ShowHitmark = v end });
+EffectsSection:AddSlider({ Name = "Hitmark Duration", Min = 0.1, Max = 5, Step = 0.1, Default = 0.5, Callback = function(v) _G.Config.HitmarkDuration = v end });
+EffectsSection:AddToggle({ Name = "Hit Sound", Default = false, Callback = function(v) _G.Config.PlayHitSound = v end });
+EffectsSection:AddToggle({ Name = "Hit Logs", Default = false, Callback = function(v) _G.Config.ShowHitLogs = v end });
+EffectsSection:AddToggle({ Name = "Show Wallbang Indicator", Default = false, Callback = function(v) _G.Config.ShowWallbangIndicator = v end });
+
+local WorldSection = VisualsTab:DrawSection({ Name = "World & Removals", Position = 'right' });
+WorldSection:AddToggle({ Name = "No Flash", Default = false, Callback = function(v) _G.Config.NoFlash = v end });
+WorldSection:AddToggle({ Name = "No Smoke", Default = false, Callback = function(v) _G.Config.NoSmoke = v end });
+WorldSection:AddToggle({ Name = "Colored Smoke", Default = false, Callback = function(v) _G.Config.ColoredSmoke = v end });
+WorldSection:AddColorPicker({ Name = "Smoke Color", Default = Color3.fromRGB(255, 0, 0), Callback = function(c) _G.Config.SmokeColor = c end });
+WorldSection:AddToggle({ Name = "Custom Particles", Default = false, Callback = function(v) _G.Config.CustomParticles = v end });
+WorldSection:AddColorPicker({ Name = "Particle Color", Default = Color3.fromRGB(170, 0, 255), Callback = function(c) _G.Config.ParticleColor = c end });
+WorldSection:AddToggle({ Name = "Kill Effects", Default = false, Callback = function(v) _G.Config.KillEffect = v end });
+WorldSection:AddDropdown({ Name = "Kill Effect Mode", Values = {"Rocket", "Lightning", "Nuke", "Black Hole", "Disintegrate", "Ascension", "Digital"}, Default = "Rocket", Callback = function(v) _G.Config.KillEffectMode = v end });
+WorldSection:AddSlider({ Name = "Kill Effect Duration", Min = 1, Max = 10, Step = 1, Default = 3, Callback = function(v) _G.Config.KillEffectDuration = v end });
+WorldSection:AddToggle({ Name = "No Recoil", Default = false, Callback = function(v) _G.Config.NoRecoilVisual = v; _G.Config.NoRecoilReal = v end });
+WorldSection:AddToggle({ Name = "Fullbright", Default = false, Callback = function(v) 
+    _G.Config.FullbrightEnabled = v
+    local L = game:GetService("Lighting")
+    if v then
+        L.Brightness = 10; L.ClockTime = 14; L.FogEnd = 100000; L.GlobalShadows = false; L.Ambient = Color3.fromRGB(255,255,255)
+    else
+        L.Brightness = 1; L.ClockTime = 14; L.FogEnd = 4000; L.GlobalShadows = true; L.Ambient = Color3.fromRGB(0,0,0)
+    end
+end });
+
+local CrosshairSection = VisualsTab:DrawSection({ Name = "Custom Crosshair", Position = 'left' });
+CrosshairSection:AddToggle({ Name = "Enable Crosshair", Default = false, Callback = function(v) _G.Config.CrosshairEnabled = v; updateCrosshair() end });
+CrosshairSection:AddSlider({ Name = "Size", Min = 2, Max = 30, Step = 1, Default = 8, Callback = function(v) _G.Config.CrosshairSize = v; updateCrosshair() end });
+CrosshairSection:AddSlider({ Name = "Gap", Min = 0, Max = 20, Step = 1, Default = 5, Callback = function(v) _G.Config.CrosshairGap = v; updateCrosshair() end });
+CrosshairSection:AddColorPicker({ Name = "Crosshair Color", Default = Color3.fromRGB(0, 255, 120), Callback = function(c) _G.Config.CrosshairColor = c; updateCrosshair() end });
+
+-- =============================================
+-- UI: MISC TAB
+-- =============================================
+local MovementSection = MiscTab:DrawSection({ Name = "Movement", Position = 'left' });
+MovementSection:AddToggle({ Name = "Bunny Hop", Default = false, Callback = function(v) _G.Config.Bhop = v end });
+MovementSection:AddSlider({ Name = "Bhop Speed", Min = 1, Max = 30, Step = 1, Default = 18, Callback = function(v) _G.Config.BhopSpeed = v end });
+MovementSection:AddToggle({ Name = "No Fall Damage", Default = false, Callback = function(v) _G.Config.NoFallDamage = v end });
+MovementSection:AddToggle({ Name = "Fake Duck", Default = false, Callback = function(v) _G.Config.FakeDuck = v end });
+MovementSection:AddSlider({ Name = "Walk Speed", Min = 8, Max = 100, Step = 1, Default = 16, Callback = function(v) local hum = getHumanoid(LocalPlayer); if hum then hum.WalkSpeed = v end end });
+MovementSection:AddSlider({ Name = "Jump Power", Min = 7, Max = 150, Step = 1, Default = 50, Callback = function(v) local hum = getHumanoid(LocalPlayer); if hum then hum.JumpPower = v end end });
+
+local CameraSection = MiscTab:DrawSection({ Name = "Camera", Position = 'right' });
+CameraSection:AddToggle({ Name = "Third Person", Default = false, Callback = function(v)
+    _G.Config.ThirdPerson = v
+    if v then
+        LocalPlayer.CameraMode = Enum.CameraMode.Classic
+        LocalPlayer.CameraMaxZoomDistance = _G.Config.ThirdPersonDist
+        LocalPlayer.CameraMinZoomDistance = _G.Config.ThirdPersonDist
+    else
+        LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson
+        LocalPlayer.CameraMaxZoomDistance = 0.5
+        LocalPlayer.CameraMinZoomDistance = 0.5
+    end
+end });
+CameraSection:AddSlider({ Name = "Third Person Distance", Min = 5, Max = 50, Step = 1, Default = 10, Callback = function(v)
+    _G.Config.ThirdPersonDist = v
+    if _G.Config.ThirdPerson then
+        LocalPlayer.CameraMaxZoomDistance = v
+        LocalPlayer.CameraMinZoomDistance = v
+    end
+end });
+CameraSection:AddToggle({ Name = "Custom FOV", Default = false, Callback = function(v) _G.Config.EnableFov = v end });
+CameraSection:AddSlider({ Name = "FOV Amount", Min = 30, Max = 150, Step = 1, Default = 90, Callback = function(v) _G.Config.CustomFov = v end });
+CameraSection:AddToggle({ Name = "Remove Scope Overlay", Default = false, Callback = function(v) _G.Config.RemoveScope = v end });
+
+-- =============================================
+-- ANTI-FLASHBANG (optimized)
+-- =============================================
+local flashConns = {}
+local function killFlashObj(obj)
+    if obj:IsA("Frame") or obj:IsA("ImageLabel") then
+        if obj.BackgroundTransparency < 0.1 then
+            local c = obj.BackgroundColor3
+            if c.R > 0.85 and c.G > 0.85 and c.B > 0.85 then obj.BackgroundTransparency = 1 end
+        end
+    elseif obj:IsA("ColorCorrectionEffect") then
+        if obj.Brightness > 0.4 then obj.Brightness = 0 end
+    elseif obj:IsA("BlurEffect") then obj.Size = 0 end
+end
+local function enableAntiFlash()
+    for _,c in ipairs(flashConns) do pcall(function() c:Disconnect() end) end
+    flashConns = {}
+    local L = game:GetService("Lighting")
+    local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    if pg then
+        for _,obj in ipairs(pg:GetDescendants()) do pcall(killFlashObj, obj) end
+        local c = pg.DescendantAdded:Connect(function(obj) if _G.Config.AntiFlashEnabled then task.wait(); pcall(killFlashObj, obj) end end)
+        table.insert(flashConns, c)
+    end
+    for _,eff in ipairs(L:GetChildren()) do pcall(killFlashObj, eff) end
+    local lc = L.ChildAdded:Connect(function(obj) if _G.Config.AntiFlashEnabled then task.wait(); pcall(killFlashObj, obj) end end)
+    table.insert(flashConns, lc)
+end
+local function disableAntiFlash()
+    for _,c in ipairs(flashConns) do pcall(function() c:Disconnect() end) end
+    flashConns = {}
+    for _,eff in ipairs(game:GetService("Lighting"):GetChildren()) do
+        if eff:IsA("BlurEffect") then eff.Size = 24 end
+    end
+end
+
+-- =============================================
+-- RUN SERVICES (OPTIMIZED)
+-- =============================================
+local triggerLast = 0
+local frameCounter = 0
+
+RunService.RenderStepped:Connect(function()
+    frameCounter = frameCounter + 1
+    local vp = Camera.ViewportSize
+    local ctr = Vector2.new(vp.X / 2, vp.Y / 2)
+    
+    -- FOV Circle
+    if _G.Config.ShowFov then
+        fovCircle.Position = ctr
+        fovCircle.Radius = _G.Config.FovRadius or 150
+        fovCircle.Color = _G.Config.FovColor or Color3.fromRGB(255, 255, 255)
+        fovCircle.Visible = true
+    else
+        fovCircle.Visible = false
+    end
+    
+    -- Custom FOV
+    if _G.Config.EnableFov then
+        Camera.FieldOfView = _G.Config.CustomFov
+    end
+    
+    -- No Flash
+    if _G.Config.NoFlash then
+        local gui = LocalPlayer.PlayerGui:FindFirstChild("FlashbangEffect")
+        if gui then gui:Destroy() end
+        local lightingEffect = game:GetService("Lighting"):FindFirstChild("FlashbangColorCorrection")
+        if lightingEffect then lightingEffect:Destroy() end
+    end
+    
+    -- Anti-Flash
+    if _G.Config.AntiFlashEnabled then
+        enableAntiFlash()
+    else
+        disableAntiFlash()
+    end
+    
+    -- Crosshair (only every 2 frames to save CPU)
+    if frameCounter % 2 == 0 then
+        updateCrosshair()
+    end
+    
+    -- Aimbot
+    if _G.Config.AimbotEnabled then
+        local isAiming = false
+        if IsMobile then
+            isAiming = #UserInputService:GetTouchPositions() > 0
+        else
+            isAiming = _G.Config.RMBHeld
+        end
+        if isAiming then
+            local _, worldPos = getClosestTarget(_G.Config.FovRadius)
+            if worldPos then
+                local origin = Camera.CFrame.Position
+                local _, onScreen = Camera:WorldToViewportPoint(worldPos)
+                if onScreen then
+                    local alpha = math.clamp(_G.Config.AimbotSmooth / 10, 0.04, 1.0)
+                    local targetCF = CFrame.lookAt(origin, worldPos)
+                    Camera.CFrame = Camera.CFrame:Lerp(targetCF, alpha)
+                end
+            end
+        end
+    end
+    
+    -- Mobile Auto-Fire (every 2 frames)
+    if IsMobile and _G.Config.AutoFireMobile and frameCounter % 2 == 0 then
+        pcall(MobileAutoFire)
+    end
+    
+    -- Triggerbot
+    if _G.Config.TriggerbotEnabled then
+        local now = tick()
+        if now - triggerLast >= _G.Config.TriggerbotDelay then
+            local char = LocalPlayer.Character
+            if char then
+                local ray = Ray.new(Camera.CFrame.Position, Camera.CFrame.LookVector * 600)
+                local hit = Workspace:FindPartOnRayWithIgnoreList(ray, {char})
+                if hit then
+                    local model = hit:FindFirstAncestorOfClass("Model")
+                    if model then
+                        for _, p in pairs(Players:GetPlayers()) do
+                            if p ~= LocalPlayer and p.Character == model and not isTeammate(p) and isAlive(p) then
+                                triggerLast = now
+                                pcall(function()
+                                    local vi = game:GetService("VirtualInputManager")
+                                    vi:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+                                    task.wait(0.05)
+                                    vi:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+                                end)
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    -- ESP (only every 3 frames to reduce load)
+    if _G.Config.EspEnabled and frameCounter % 3 == 0 then
+        for _, p in pairs(Players:GetPlayers()) do
+            pcall(updatePlayerEsp, p)
+        end
+    elseif not _G.Config.EspEnabled then
+        for name, d in pairs(espDrawings) do
+            if d.box then d.box.Visible = false end
+            if d.hpBg then d.hpBg.Visible = false end
+            if d.hpBar then d.hpBar.Visible = false end
+            if d.distText then d.distText.Visible = false end
+            if d.nameText then d.nameText.Visible = false end
+            if d.tracer then d.tracer.Visible = false end
+            if d.skel then for _,l in ipairs(d.skel) do l.Visible = false end end
+            if d.highlight then pcall(function() d.highlight:Destroy() end); d.highlight = nil end
+        end
+    end
+end)
+
+RunService.Heartbeat:Connect(function()
+    if _G.Config.Bhop then
+        local hum = getHumanoid(LocalPlayer)
+        if hum and hum:GetState() == Enum.HumanoidStateType.Freefall then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
+
+UserInputService.InputBegan:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.MouseButton2 then
+        _G.Config.RMBHeld = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.MouseButton2 then
+        _G.Config.RMBHeld = false
+    end
+end)
+
+-- =============================================
+-- PLAYER HOOKS
+-- =============================================
+local function hookPlayer(p)
+    p.CharacterAdded:Connect(function()
+        task.wait(0.55)
+        local d = espDrawings[p.Name]
+        if d then
+            if d.highlight then pcall(function() d.highlight:Destroy() end); d.highlight = nil end
+            if d.box then d.box.Visible = false end
+            if d.hpBg then d.hpBg.Visible = false end
+            if d.hpBar then d.hpBar.Visible = false end
+            if d.distText then d.distText.Visible = false end
+            if d.nameText then d.nameText.Visible = false end
+            if d.tracer then d.tracer.Visible = false end
+            if d.skel then for _,l in ipairs(d.skel) do l.Visible = false end end
+        end
+    end)
+    p.CharacterRemoving:Connect(function()
+        local d = espDrawings[p.Name]
+        if d then
+            if d.highlight then pcall(function() d.highlight:Destroy() end); d.highlight = nil end
+            if d.box then d.box.Visible = false end
+            if d.hpBg then d.hpBg.Visible = false end
+            if d.hpBar then d.hpBar.Visible = false end
+            if d.distText then d.distText.Visible = false end
+            if d.nameText then d.nameText.Visible = false end
+            if d.tracer then d.tracer.Visible = false end
+            if d.skel then for _,l in ipairs(d.skel) do l.Visible = false end end
+        end
+    end)
+end
+
+for _, p in pairs(Players:GetPlayers()) do
+    if p ~= LocalPlayer then hookPlayer(p) end
+end
+
+Players.PlayerAdded:Connect(function(p) hookPlayer(p) end)
+Players.PlayerRemoving:Connect(function(p)
+    destroyEsp(p.Name)
+end)
+
+-- =============================================
+-- INIT
+-- =============================================
+task.spawn(SetupSilentAim)
+_G.LoadStage = 2
+
+-- =============================================
+-- FINAL NOTIFICATION
+-- =============================================
+task.wait(2)
+if IsMobile then
+    Notifier.new({ Title = "DevHub", Content = "📱 Mobile mode activated! All features ready.", Duration = 6, Icon = "rbxassetid://12293377909" })
+else
+    Notifier.new({ Title = "DevHub", Content = "💻 PC mode activated. All features ready.", Duration = 4, Icon = "rbxassetid://12293377909" })
+end
+Notifier.new({ Title = "DevHub", Content = "Made By ZeroDev ❤️ Play safe!", Duration = 5, Icon = "rbxassetid://12293377909" })
+
+ConfigManager:Load();
