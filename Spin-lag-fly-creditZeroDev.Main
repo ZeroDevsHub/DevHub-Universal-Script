@@ -1,0 +1,442 @@
+-- =============================================
+-- DEVHUB - Fly + Spin Modes
+-- Made By ZeroDev
+-- =============================================
+
+-- =============================================
+-- LOAD COMPKILLER UI
+-- =============================================
+local Compkiller = loadstring(game:HttpGet("https://raw.githubusercontent.com/4lpaca-pin/CompKiller/refs/heads/main/src/source.luau"))();
+
+local Notifier = Compkiller.newNotify();
+local ConfigManager = Compkiller:ConfigManager({
+	Directory = "DevHubConfig",
+	Config = "FlySpin-Config"
+});
+
+Compkiller:Loader("rbxassetid://12293377909", 1.5).yield();
+
+local MenuKey = "LeftAlt";
+local Window = Compkiller.new({
+	Name = "DevHub",
+	Keybind = MenuKey,
+	Logo = "rbxassetid://12293377909",
+	Scale = Compkiller.Scale.Window,
+	TextSize = 15,
+});
+
+Notifier.new({
+	Title = "DevHub",
+	Content = "Made By ZeroDev ❤️",
+	Duration = 8,
+	Icon = "rbxassetid://12293377909"
+});
+
+-- =============================================
+-- DETECT PLATFORM
+-- =============================================
+local UserInputService = game:GetService("UserInputService")
+local IsMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+-- =============================================
+-- WATERMARK (hide on mobile)
+-- =============================================
+local Watermark
+if not IsMobile then
+	Watermark = Window:Watermark();
+	Watermark:AddText({ Icon = "user", Text = "DevHub" });
+	Watermark:AddText({ Icon = "clock", Text = Compkiller:GetDate() });
+	local Time = Watermark:AddText({ Icon = "timer", Text = "TIME" });
+	task.spawn(function()
+		while true do task.wait()
+			Time:SetText(Compkiller:GetTimeNow());
+		end
+	end)
+	Watermark:AddText({ Icon = "server", Text = Compkiller.Version });
+end
+
+-- =============================================
+-- USER SETTINGS (minimal)
+-- =============================================
+local UserSettings = Window.UserSettings:Create();
+UserSettings:AddColorPicker({
+	Name = "Menu Color",
+	Default = Compkiller.Colors.Highlight,
+	Callback = function(f)
+		Compkiller.Colors.Highlight = f;
+		Compkiller:RefreshCurrentColor();
+	end,
+});
+if not IsMobile then
+	UserSettings:AddKeybind({
+		Name = "Menu Key",
+		Default = MenuKey,
+		Callback = function(f)
+			MenuKey = f;
+			Window:SetMenuKey(MenuKey)
+		end,
+	});
+end
+UserSettings:AddDropdown({
+	Name = "Menu Theme",
+	Values = {"Default", "Dark Green", "Dark Blue", "Purple Rose", "Skeet"},
+	Default = "Default",
+	Callback = function(f) Compkiller:SetTheme(f) end,
+});
+
+-- =============================================
+-- CREATE TABS
+-- =============================================
+Window:DrawCategory({ Name = "DevHub" });
+
+local MainTab = Window:DrawTab({ Name = "Main", Icon = "home", EnableScrolling = true });
+local FunTab = Window:DrawTab({ Name = "Fun", Icon = "stars", EnableScrolling = true });
+local ConfigTab = Window:DrawConfig({ Name = "Config", Icon = "folder", Config = ConfigManager });
+ConfigTab:Init();
+
+-- =============================================
+-- FLY SYSTEM
+-- =============================================
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local HRP = character:WaitForChild("HumanoidRootPart")
+
+local flySpeed = 50
+local flying = false
+local bodyVelocity = Instance.new("BodyVelocity")
+bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+bodyVelocity.MaxForce = Vector3.new(100000, 100000, 100000)
+local bodyGyro = Instance.new("BodyGyro")
+bodyGyro.CFrame = HRP.CFrame
+bodyGyro.MaxTorque = Vector3.new(100000, 100000, 100000)
+
+local inputFlags = { forward = false, back = false, left = false, right = false, up = false, down = false }
+local showFlyControls = false
+local flyGui = nil
+
+-- Fly UI (D‑pad) – created only once
+local function createFlyUI()
+	if flyGui then return end
+	local screenGui = Instance.new("ScreenGui")
+	screenGui.Name = "FlyScreenGui"
+	screenGui.ResetOnSpawn = false
+	screenGui.Parent = player:WaitForChild("PlayerGui")
+
+	local container = Instance.new("Frame")
+	container.Name = "FlyControlsContainer"
+	container.Size = UDim2.new(1, 0, 1, 0)
+	container.BackgroundTransparency = 1
+	container.Parent = screenGui
+	container.Visible = false
+
+	local function createButton(parent, name, text, pos, size)
+		local btn = Instance.new("TextButton")
+		btn.Name = name
+		btn.Text = text
+		btn.Size = size
+		btn.Position = pos
+		btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		btn.Font = Enum.Font.GothamBold
+		btn.TextScaled = true
+		btn.BackgroundTransparency = 0.2
+		btn.Parent = parent
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 12)
+		corner.Parent = btn
+		return btn
+	end
+
+	local dpadSize = UDim2.new(0, 60, 0, 60)
+
+	local toggleBtn = createButton(container, "ToggleFlyButton", "Fly OFF", UDim2.new(1, -110, 0, 10), UDim2.new(0, 100, 0, 50))
+	toggleBtn.MouseButton1Click:Connect(function()
+		if flying then
+			stopFlying()
+			toggleBtn.Text = "Fly OFF"
+		else
+			startFlying()
+			toggleBtn.Text = "Fly ON"
+		end
+	end)
+
+	local forwardBtn = createButton(container, "ForwardButton", "↑", UDim2.new(0, 70, 1, -190), dpadSize)
+	local backBtn = createButton(container, "BackButton", "↓", UDim2.new(0, 70, 1, -70), dpadSize)
+	local leftBtn = createButton(container, "LeftButton", "←", UDim2.new(0, 10, 1, -130), dpadSize)
+	local rightBtn = createButton(container, "RightButton", "→", UDim2.new(0, 130, 1, -130), dpadSize)
+	local upBtn = createButton(container, "UpButton", "Up", UDim2.new(1, -110, 1, -190), dpadSize)
+	local downBtn = createButton(container, "DownButton", "Down", UDim2.new(1, -110, 1, -70), dpadSize)
+
+	local function addTouchEvents(btn, flag)
+		btn.MouseButton1Down:Connect(function() inputFlags[flag] = true end)
+		btn.MouseButton1Up:Connect(function() inputFlags[flag] = false end)
+		btn.MouseLeave:Connect(function() inputFlags[flag] = false end)
+	end
+
+	addTouchEvents(forwardBtn, "forward")
+	addTouchEvents(backBtn, "back")
+	addTouchEvents(leftBtn, "left")
+	addTouchEvents(rightBtn, "right")
+	addTouchEvents(upBtn, "up")
+	addTouchEvents(downBtn, "down")
+
+	-- UI toggle button (hide/show D‑pad)
+	local uiToggle = createButton(screenGui, "UIToggleButton", "Hide D‑Pad", UDim2.new(0, 10, 0, 10), UDim2.new(0, 100, 0, 50))
+	uiToggle.MouseButton1Click:Connect(function()
+		showFlyControls = not showFlyControls
+		container.Visible = showFlyControls
+		uiToggle.Text = showFlyControls and "Hide D‑Pad" or "Show D‑Pad"
+	end)
+
+	flyGui = {
+		ScreenGui = screenGui,
+		Container = container,
+		ToggleButton = toggleBtn,
+		UIToggle = uiToggle,
+	}
+end
+
+local function startFlying()
+	flying = true
+	bodyVelocity.Parent = HRP
+	bodyGyro.Parent = HRP
+	humanoid.PlatformStand = true
+	if flyGui and flyGui.ToggleButton then
+		flyGui.ToggleButton.Text = "Fly ON"
+	end
+end
+
+local function stopFlying()
+	flying = false
+	bodyVelocity.Parent = nil
+	bodyGyro.Parent = nil
+	humanoid.PlatformStand = false
+	if flyGui and flyGui.ToggleButton then
+		flyGui.ToggleButton.Text = "Fly OFF"
+	end
+end
+
+-- Handle character respawn
+player.CharacterAdded:Connect(function(newChar)
+	character = newChar
+	humanoid = newChar:WaitForChild("Humanoid")
+	HRP = newChar:WaitForChild("HumanoidRootPart")
+	flying = false
+end)
+
+-- Fly movement loop
+RunService.RenderStepped:Connect(function(deltaTime)
+	if flying then
+		local moveDirection = Vector3.new(0, 0, 0)
+		local camCF = workspace.CurrentCamera.CFrame
+		if inputFlags.forward then moveDirection = moveDirection + camCF.LookVector end
+		if inputFlags.back then moveDirection = moveDirection - camCF.LookVector end
+		if inputFlags.left then moveDirection = moveDirection - camCF.RightVector end
+		if inputFlags.right then moveDirection = moveDirection + camCF.RightVector end
+		if inputFlags.up then moveDirection = moveDirection + Vector3.new(0, 1, 0) end
+		if inputFlags.down then moveDirection = moveDirection - Vector3.new(0, 1, 0) end
+		if moveDirection.Magnitude > 0 then moveDirection = moveDirection.Unit end
+		bodyVelocity.Velocity = moveDirection * flySpeed
+		bodyGyro.CFrame = camCF
+	end
+end)
+
+-- =============================================
+-- SPIN SYSTEM (unchanged from earlier)
+-- =============================================
+local spinRunning = false
+local spinTask = nil
+local mode = "spin"
+local distanceX = 10
+local distanceY = -1
+local addon = true
+local autoOscillate = false
+
+local spawnPoint = workspace:FindFirstChild("Locators") and workspace.Locators:FindFirstChild("Runway") and workspace.Locators.Runway:FindFirstChild("Spawn")
+local cameraPos = workspace:FindFirstChild("Locators") and workspace.Locators:FindFirstChild("Runway") and workspace.Locators.Runway:FindFirstChild("Camera3")
+local remoteAddVFX = game:GetService("ReplicatedStorage"):FindFirstChild("RemoteEvents") and game.ReplicatedStorage.RemoteEvents:FindFirstChild("AddVFX")
+local remoteEmitVFX = game:GetService("ReplicatedStorage"):FindFirstChild("RemoteEvents") and game.ReplicatedStorage.RemoteEvents:FindFirstChild("EmitVFX")
+
+local function spinLoop()
+	if character and character:FindFirstChild("Head") then
+		character.Head:Destroy()
+	end
+	character = player.CharacterAdded:Wait()
+	HRP = character:WaitForChild("HumanoidRootPart")
+
+	local angle = 0
+	while spinRunning do
+		angle = angle + math.rad(15)
+		if remoteAddVFX and remoteEmitVFX then
+			pcall(function()
+				remoteAddVFX:FireServer("Gassy")
+				remoteEmitVFX:FireServer("Gassy")
+				remoteAddVFX:FireServer("WaterPose")
+				remoteEmitVFX:FireServer("WaterPose")
+			end)
+		end
+		if cameraPos and HRP then
+			local targetPos = cameraPos.Position + Vector3.new(distanceX, distanceY, 0)
+			HRP.CFrame = CFrame.new(targetPos) * CFrame.Angles(angle, angle, 0)
+		end
+		task.wait()
+	end
+end
+
+local function startSpin()
+	if spinRunning then return end
+	spinRunning = true
+	spinTask = task.spawn(spinLoop)
+end
+
+local function stopSpin()
+	spinRunning = false
+	if spinTask then
+		task.cancel(spinTask)
+		spinTask = nil
+	end
+end
+
+-- Auto oscillation loop
+task.spawn(function()
+	while true do
+		task.wait()
+		if autoOscillate and spinRunning then
+			distanceX = addon and distanceX + 1 or distanceX - 1
+			if distanceX >= 60 then
+				addon = false
+			elseif distanceX <= 5 then
+				addon = true
+			end
+		end
+	end
+end)
+
+-- =============================================
+-- UI: MAIN TAB (Fly)
+-- =============================================
+local FlySection = MainTab:DrawSection({ Name = "Fly Mode", Position = 'left' });
+
+local flyToggle = FlySection:AddToggle({
+	Name = "Enable Fly",
+	Default = false,
+	Callback = function(v)
+		if v then
+			createFlyUI()
+			startFlying()
+			Notifier.new({ Title = "DevHub", Content = "Fly mode activated! 🚀", Duration = 3, Icon = "rbxassetid://12293377909" })
+		else
+			stopFlying()
+			Notifier.new({ Title = "DevHub", Content = "Fly mode deactivated.", Duration = 3, Icon = "rbxassetid://12293377909" })
+		end
+	end
+});
+
+FlySection:AddSlider({
+	Name = "Fly Speed",
+	Min = 10,
+	Max = 200,
+	Step = 5,
+	Default = 50,
+	Callback = function(v)
+		flySpeed = v
+	end
+});
+
+FlySection:AddToggle({
+	Name = "Show D‑Pad (mobile controls)",
+	Default = false,
+	Callback = function(v)
+		showFlyControls = v
+		if flyGui and flyGui.Container then
+			flyGui.Container.Visible = v
+			flyGui.UIToggle.Text = v and "Hide D‑Pad" or "Show D‑Pad"
+		end
+	end
+});
+
+-- =============================================
+-- UI: FUN TAB (Spin)
+-- =============================================
+local SpinSection = FunTab:DrawSection({ Name = "Spin Mode", Position = 'left' });
+
+local spinToggle = SpinSection:AddToggle({
+	Name = "Enable Spin",
+	Default = false,
+	Callback = function(v)
+		if v then
+			startSpin()
+			Notifier.new({ Title = "DevHub", Content = "Spin mode activated! 🌀", Duration = 3, Icon = "rbxassetid://12293377909" })
+		else
+			stopSpin()
+			Notifier.new({ Title = "DevHub", Content = "Spin mode deactivated.", Duration = 3, Icon = "rbxassetid://12293377909" })
+		end
+	end
+});
+
+SpinSection:AddSlider({
+	Name = "Distance X",
+	Min = 1,
+	Max = 100,
+	Step = 1,
+	Default = 10,
+	Callback = function(v) distanceX = v end
+});
+
+SpinSection:AddSlider({
+	Name = "Distance Y",
+	Min = -20,
+	Max = 20,
+	Step = 1,
+	Default = -1,
+	Callback = function(v) distanceY = v end
+});
+
+SpinSection:AddDropdown({
+	Name = "Mode",
+	Values = {"spin"},
+	Default = "spin",
+	Callback = function(v) mode = v end
+});
+
+SpinSection:AddToggle({
+	Name = "Auto Oscillate X",
+	Default = false,
+	Callback = function(v) autoOscillate = v end
+});
+
+SpinSection:AddButton({
+	Name = "Test VFX (Gassy)",
+	Callback = function()
+		if remoteAddVFX and remoteEmitVFX then
+			pcall(function()
+				remoteAddVFX:FireServer("Gassy")
+				remoteEmitVFX:FireServer("Gassy")
+			end)
+			Notifier.new({ Title = "DevHub", Content = "VFX triggered!", Duration = 2, Icon = "rbxassetid://12293377909" })
+		else
+			Notifier.new({ Title = "DevHub", Content = "VFX remotes not found.", Duration = 2, Icon = "rbxassetid://12293377909" })
+		end
+	end
+});
+
+-- =============================================
+-- CLEANUP
+-- =============================================
+game:BindToClose(function()
+	stopSpin()
+	stopFlying()
+end)
+
+-- =============================================
+-- INIT
+-- =============================================
+Notifier.new({
+	Title = "DevHub",
+	Content = "Fly & Spin modes ready!\nToggle them in the Main / Fun tabs.",
+	Duration = 6,
+	Icon = "rbxassetid://12293377909"
+});
+
+ConfigManager:Load();
